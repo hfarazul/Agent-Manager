@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
-import { basename } from "node:path";
 import { config } from "./config.js";
+import { resolveProjectName } from "./project.js";
 import type {
   HudState,
   Session,
@@ -51,7 +51,7 @@ class Store extends EventEmitter {
     const session: Session = {
       sessionId,
       cwd: cwd || existing?.cwd || "",
-      projectName: cwd ? basename(cwd) : (existing?.projectName ?? "unknown"),
+      projectName: cwd ? resolveProjectName(cwd) : (existing?.projectName ?? "unknown"),
       // Name only comes from statusLine; preserve it across hook updates.
       name: existing?.name,
       status,
@@ -154,7 +154,7 @@ class Store extends EventEmitter {
       name,
       // Refresh project from cwd if the statusLine gives a better one.
       cwd: cwd ?? existing.cwd,
-      projectName: cwd ? basename(cwd) : existing.projectName,
+      projectName: cwd ? resolveProjectName(cwd) : existing.projectName,
       updatedAt: nowIso(),
     });
     this.emitChange();
