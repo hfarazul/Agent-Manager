@@ -1,0 +1,70 @@
+{
+  "name": "agent-hud",
+  "displayName": "Agent HUD",
+  "description": "Glanceable view + sleep control for Claude Code agents",
+  "version": "0.1.0",
+  "publisher": "agent-hud",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentHud",
+          "title": "Agent HUD",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentHud": [
+        {
+          "id": "agentHud.view",
+          "name": "Agent HUD",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "agentHud.toggleSleep",
+        "title": "Agent HUD: Toggle Keep-Awake"
+      },
+      {
+        "command": "agentHud.openPanel",
+        "title": "Agent HUD: Focus Panel"
+      }
+    ],
+    "configuration": {
+      "title": "Agent HUD",
+      "properties": {
+        "agentHud.daemonUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:7842",
+          "description": "Base URL of the agent-hud daemon."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json -w",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package": "npx --yes @vscode/vsce package --allow-missing-repository --skip-license",
+    "release": "npm run build && npm run package && bash scripts/install-to-cursor.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

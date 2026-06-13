@@ -1,0 +1,16 @@
+# agent-hud — scoped sudoers drop-in (vision.md §5, Option A)
+#
+# Lets the daemon flip ONLY the clamshell-sleep pmset command without a
+# password. Tightly scoped to the two exact invocations — nothing else.
+#
+# Install (one-time):
+#   sudo install -m 0440 setup/sudoers-agent-hud /etc/sudoers.d/agent-hud
+#   sudo visudo -cf /etc/sudoers.d/agent-hud      # validate syntax
+#
+# Remove:
+#   sudo rm /etc/sudoers.d/agent-hud
+#
+# Upgrade path (vision.md §5 Option B): replace with an SMAppService XPC
+# helper. Not built for v1.
+
+haquefarazul ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1
