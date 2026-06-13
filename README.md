@@ -26,26 +26,33 @@ Claude Code (hooks + statusLine)  ──▶  Daemon (localhost :7842)  ──▶
 
 ## Setup
 
+One script resolves this machine's paths/user from templates and installs the
+daemon (launchd service), Claude Code hooks, and statusLine:
+
 ```bash
-# daemon
-cd packages/daemon && npm install && npm run build
-
-# launchd service (auto-start on login, auto-restart on crash)
-cp ../../setup/com.agent-hud.daemon.plist ~/Library/LaunchAgents/   # see setup/ for the template
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.agent-hud.daemon.plist
-
-# Claude Code wiring — merge the hooks + statusLine into ~/.claude/settings.json
-#   hooks: SessionStart, SessionEnd, Notification, Stop, UserPromptSubmit, PreToolUse → POST :7842/hook
-#   statusLine: setup/statusline.mjs → POST :7842/usage/statusline
-
-# clamshell (lid-closed) keep-awake needs a scoped sudoers drop-in:
-sudo install -m 0440 setup/sudoers-agent-hud /etc/sudoers.d/agent-hud
-
-# extension — build, package, and install into Cursor/VS Code
-cd ../vscode-extension && npm install && npm run release
+./setup/install.sh
 ```
 
+It builds the daemon, generates `~/Library/LaunchAgents/com.agent-hud.daemon.plist`
+from [`setup/com.agent-hud.daemon.plist.template`](./setup/com.agent-hud.daemon.plist.template),
+loads the service, and merges the hooks + statusLine into `~/.claude/settings.json`
+(backing it up first). It then prints two manual steps:
+
+```bash
+# clamshell (lid-closed) keep-awake — needs root (the script prints the exact command):
+sudo install -m 0440 <generated> /etc/sudoers.d/agent-hud && sudo visudo -cf /etc/sudoers.d/agent-hud
+
+# the editor extension — build, package, install into Cursor/VS Code:
+cd packages/vscode-extension && npm install && npm run release
+```
+
+Hooks wired: `SessionStart`, `SessionEnd`, `Notification`, `Stop`,
+`UserPromptSubmit`, `PreToolUse` → `POST :7842/hook`; statusLine
+(`setup/statusline.mjs`) → `POST :7842/usage/statusline`.
+
 Requires Claude Code **≥ v2.1.80** for the `rate_limits` (usage) data.
+Set `AGENT_HUD_DEBUG=1` on the daemon to capture raw hook/statusLine payloads
+(size-capped) under `$TMPDIR` for schema debugging.
 
 ## Development
 

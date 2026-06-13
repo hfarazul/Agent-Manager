@@ -1,7 +1,5 @@
-import { appendFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { store } from "./store.js";
+import { debugCapture, debugPath } from "./debug.js";
 import type { SessionStatus } from "./types.js";
 
 /**
@@ -13,10 +11,6 @@ import type { SessionStatus } from "./types.js";
  * Claude Code version (vision.md §4). We never throw on shape; worst case we
  * log and ignore.
  */
-
-/** Step-0 aid: every raw payload is appended here so we can confirm the real
- * schema on the installed version. Tail with: tail -f $TMPDIR/agent-hud-hooks.jsonl */
-const RAW_LOG = join(tmpdir(), "agent-hud-hooks.jsonl");
 
 /** Loose shape — every field optional because versions differ. */
 interface HookPayload {
@@ -56,11 +50,8 @@ export interface HookResult {
 }
 
 export async function ingestHook(body: unknown): Promise<HookResult> {
-  // Always record the raw payload first (Step 0), best-effort.
-  void appendFile(
-    RAW_LOG,
-    JSON.stringify({ ts: new Date().toISOString(), body }) + "\n",
-  ).catch(() => {});
+  // Capture the raw payload for schema debugging (opt-in via AGENT_HUD_DEBUG).
+  debugCapture("agent-hud-hooks.jsonl", body);
 
   const payload = (body ?? {}) as HookPayload;
   const event = payload.hook_event_name;
@@ -111,4 +102,4 @@ function extractMessage(payload: HookPayload): string | undefined {
   return undefined;
 }
 
-export const RAW_HOOK_LOG_PATH = RAW_LOG;
+export const RAW_HOOK_LOG_PATH = debugPath("agent-hud-hooks.jsonl");

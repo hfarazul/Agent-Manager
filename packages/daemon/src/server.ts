@@ -14,6 +14,27 @@ import { startAttentionScanner } from "./attention.js";
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
 
+  // Tolerant body parsing. Claude Code hooks pipe JSON on stdin and the curl
+  // forwarder may send it without a Content-Type (415) or, in odd cases, as
+  // malformed JSON (400). Fastify's default parser rejects both BEFORE our
+  // handlers run — which would break the user's hook chain. Parse every body
+  // as a tolerant JSON string instead: empty or unparseable → {}, never an
+  // error. The /hook and /usage handlers already treat unknown shapes safely.
+  const tolerantJson = (
+    _req: unknown,
+    body: string,
+    done: (err: Error | null, value?: unknown) => void,
+  ): void => {
+    if (!body) return done(null, {});
+    try {
+      done(null, JSON.parse(body));
+    } catch {
+      done(null, {});
+    }
+  };
+  app.addContentTypeParser("application/json", { parseAs: "string" }, tolerantJson);
+  app.addContentTypeParser("*", { parseAs: "string" }, tolerantJson);
+
   await app.register(websocket);
 
   // Liveness — used by launchd KeepAlive checks and the VS Code client.

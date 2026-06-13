@@ -1,0 +1,10 @@
+# agent-hud — scoped sudoers drop-in (vision.md §5, Option A)
+# Template — install.sh substitutes __USER__ for the current user.
+#
+# Lets the daemon flip ONLY the clamshell-sleep pmset command without a
+# password. Tightly scoped to the two exact invocations — nothing else.
+#
+# install.sh prints the exact `sudo install` command to put this in place at
+# /etc/sudoers.d/agent-hud (validated with `visudo -cf`).
+
+__USER__ ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1

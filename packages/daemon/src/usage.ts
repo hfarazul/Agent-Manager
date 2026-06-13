@@ -1,7 +1,5 @@
-import { appendFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { store } from "./store.js";
+import { debugCapture, debugPath } from "./debug.js";
 import type { UsageState, UsageWindow } from "./types.js";
 
 /**
@@ -18,8 +16,6 @@ import type { UsageState, UsageWindow } from "./types.js";
  * MUST be tolerant of unknown shapes — schema varies by version.
  */
 
-const RAW_LOG = join(tmpdir(), "agent-hud-statusline.json");
-
 /** Loose shape — every field optional. */
 interface StatusLinePayload {
   session_id?: string;
@@ -32,11 +28,8 @@ interface StatusLinePayload {
 }
 
 export async function ingestUsage(body: unknown): Promise<UsageState> {
-  // Step-0 aid: keep the latest raw payload so we can confirm the real shape.
-  void appendFile(
-    RAW_LOG,
-    JSON.stringify({ ts: new Date().toISOString(), body }) + "\n",
-  ).catch(() => {});
+  // Capture the raw payload for schema debugging (opt-in via AGENT_HUD_DEBUG).
+  debugCapture("agent-hud-statusline.jsonl", body);
 
   const payload = (body ?? {}) as StatusLinePayload;
 
@@ -103,4 +96,4 @@ function numField(o: Record<string, unknown>, keys: string[]): number | undefine
   return undefined;
 }
 
-export const RAW_STATUSLINE_LOG_PATH = RAW_LOG;
+export const RAW_STATUSLINE_LOG_PATH = debugPath("agent-hud-statusline.jsonl");

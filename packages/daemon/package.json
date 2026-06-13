@@ -12,7 +12,8 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "AGENT_HUD_READY_TO_IDLE_MS=50 node --import tsx --test src/hooks.test.ts src/store.test.ts src/attention.test.ts src/usage.test.ts"
   },
   "dependencies": {
     "@fastify/websocket": "^11.0.1",

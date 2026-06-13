@@ -21,4 +21,11 @@ export const config = {
    * to calm once you've clearly not engaged.
    */
   readyToIdleMs: Number(process.env.AGENT_HUD_READY_TO_IDLE_MS ?? 1000 * 60 * 5),
+
+  /**
+   * When set, raw hook/statusLine payloads are appended to JSONL files under
+   * $TMPDIR for schema debugging (Step 0). OFF by default — these payloads
+   * contain local paths + session metadata and the files grow unbounded.
+   */
+  debug: !!process.env.AGENT_HUD_DEBUG,
 } as const;
