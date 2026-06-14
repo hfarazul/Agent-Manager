@@ -57,6 +57,30 @@ test("unknown event is tolerated, leaves status unchanged", async () => {
   assert.equal(findStatus("s7"), "running");
 });
 
+const findPids = (id: string) =>
+  store.getState().sessions.find((s) => s.sessionId === id)?.ancestorPids;
+
+test("forwarder's ancestor PIDs are captured and preserved across hooks", async () => {
+  await ingestHook({
+    session_id: "p1",
+    hook_event_name: "SessionStart",
+    cwd: "/tmp/p",
+    agent_hud_ancestor_pids: [101, 202, 303],
+  });
+  assert.deepEqual(findPids("p1"), [101, 202, 303]);
+
+  // A later hook without pids must not wipe the chain.
+  await ingestHook({ session_id: "p1", hook_event_name: "Stop", cwd: "/tmp/p" });
+  assert.deepEqual(findPids("p1"), [101, 202, 303]);
+});
+
+test("garbage ancestor_pids shapes are ignored, never throw", async () => {
+  await ingestHook({ session_id: "p2", hook_event_name: "SessionStart", cwd: "/tmp/p", agent_hud_ancestor_pids: "nope" });
+  assert.equal(findPids("p2"), undefined);
+  await ingestHook({ session_id: "p3", hook_event_name: "SessionStart", cwd: "/tmp/p", agent_hud_ancestor_pids: [0, -1, "x", 5] });
+  assert.deepEqual(findPids("p3"), [5], "only positive numbers survive");
+});
+
 test("malformed / missing-field bodies never throw", async () => {
   await assert.doesNotReject(ingestHook({ garbage: true }));
   await assert.doesNotReject(ingestHook(null));

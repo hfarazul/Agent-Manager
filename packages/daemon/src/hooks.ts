@@ -19,7 +19,18 @@ interface HookPayload {
   cwd?: string;
   transcript_path?: string;
   message?: string;
+  /** PID chain injected by the hook forwarder (setup/hook.mjs) — used to map a
+   * session to its terminal tab for click-to-session. */
+  agent_hud_ancestor_pids?: unknown;
   [k: string]: unknown;
+}
+
+/** Read the forwarder's ancestor-PID array, tolerating any shape. */
+function extractAncestorPids(payload: HookPayload): number[] | undefined {
+  const raw = payload.agent_hud_ancestor_pids;
+  if (!Array.isArray(raw)) return undefined;
+  const pids = raw.filter((n): n is number => typeof n === "number" && n > 0);
+  return pids.length ? pids : undefined;
 }
 
 /** Map a Claude Code hook event name → our session status transition. */
@@ -92,6 +103,8 @@ export async function ingestHook(body: unknown): Promise<HookResult> {
     message,
     // Capture transcript path so the AskUserQuestion scanner can tail it.
     typeof payload.transcript_path === "string" ? payload.transcript_path : undefined,
+    // Capture the PID chain so the extension can focus this session's terminal.
+    extractAncestorPids(payload),
   );
 
   return { ok: true, event, action: "upsert" };

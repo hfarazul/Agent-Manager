@@ -39,6 +39,7 @@ class Store extends EventEmitter {
     status: SessionStatus,
     lastMessage?: string,
     transcriptPath?: string,
+    ancestorPids?: number[],
   ): void {
     const existing = this.sessions.get(sessionId);
 
@@ -59,14 +60,19 @@ class Store extends EventEmitter {
       lastMessage: lastMessage ?? existing?.lastMessage,
       attentionReason,
       transcriptPath: transcriptPath ?? existing?.transcriptPath,
+      // PID chain is set once (SessionStart) and preserved across later hooks.
+      ancestorPids: ancestorPids ?? existing?.ancestorPids,
       updatedAt: nowIso(),
     };
     this.sessions.set(sessionId, session);
 
     // WS-churn guard: PreToolUse fires on every tool call. If nothing the user
     // can see changed (same status/message/name/project), refresh updatedAt
-    // silently instead of pushing a new snapshot to every client.
-    if (visiblyEqual(existing, session)) return;
+    // silently instead of pushing a new snapshot to every client. Exception:
+    // first acquisition of the PID chain must propagate so click-to-session
+    // works even if no visible field changed on that hook.
+    const acquiredPids = !existing?.ancestorPids && !!session.ancestorPids;
+    if (!acquiredPids && visiblyEqual(existing, session)) return;
     this.emitChange();
   }
 

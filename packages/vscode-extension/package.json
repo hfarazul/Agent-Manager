@@ -2,7 +2,7 @@
   "name": "agent-hud",
   "displayName": "Agent HUD",
   "description": "Glanceable view + sleep control for Claude Code agents",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "agent-hud",
   "private": true,
   "engines": {
@@ -55,6 +55,7 @@
     "build": "tsc -p tsconfig.json",
     "watch": "tsc -p tsconfig.json -w",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "vscode:prepublish": "npm run build",
     "package": "npx --yes @vscode/vsce package --allow-missing-repository --skip-license",
     "release": "npm run build && npm run package && bash scripts/install-to-cursor.sh"
   },

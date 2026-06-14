@@ -13,6 +13,9 @@ export interface Session {
   lastMessage?: string;
   /** Why the session needs attention (the UI may ignore this). */
   attentionReason?: "notification" | "question";
+  /** PID chain from the hook up to the terminal shell — the shell PID matches
+   * `terminal.processId`, letting us focus this session's tab on click. */
+  ancestorPids?: number[];
   updatedAt: string;
 }
 

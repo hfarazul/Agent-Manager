@@ -55,13 +55,23 @@ REPO="$REPO" node <<'NODE'
 const fs = require('fs');
 const p = require('os').homedir() + '/.claude/settings.json';
 const s = JSON.parse(fs.readFileSync(p, 'utf8'));
-const CURL = "curl -s --max-time 2 -X POST http://localhost:7842/hook -H 'Content-Type: application/json' -d @- || true";
-const entry = { hooks: [{ type: 'command', command: CURL }] };
-const has = (arr) => arr.some(g => (g.hooks || []).some(h => typeof h.command === 'string' && h.command.includes('/hook')));
+// Forwarder script: captures the terminal PID chain (for click-to-session) then
+// POSTs to /hook. Replaces the older inline `curl … /hook` one-liner.
+const FWD = 'node ' + process.env.REPO + '/setup/hook.mjs || true';
+const entry = { hooks: [{ type: 'command', command: FWD }] };
+// Identify OUR hook entries (old curl-to-/hook OR the forwarder) so we can
+// upgrade idempotently — without disturbing the user's other hooks (e.g. their
+// own osascript notifications, which never reference /hook).
+const isOurs = (h) => typeof h.command === 'string' &&
+  (h.command.includes(':7842/hook') || h.command.includes('/setup/hook.mjs'));
 s.hooks ||= {};
 for (const ev of ['SessionStart','SessionEnd','Notification','Stop','UserPromptSubmit','PreToolUse']) {
   s.hooks[ev] ||= [];
-  if (!has(s.hooks[ev])) s.hooks[ev].push(JSON.parse(JSON.stringify(entry)));
+  // Drop any prior agent-hud entry (curl or forwarder), keep everything else.
+  s.hooks[ev] = s.hooks[ev]
+    .map(g => ({ ...g, hooks: (g.hooks || []).filter(h => !isOurs(h)) }))
+    .filter(g => (g.hooks || []).length > 0);
+  s.hooks[ev].push(JSON.parse(JSON.stringify(entry)));
 }
 s.statusLine = { type: 'command', command: 'node ' + process.env.REPO + '/setup/statusline.mjs' };
 fs.writeFileSync(p, JSON.stringify(s, null, 2) + '\n');

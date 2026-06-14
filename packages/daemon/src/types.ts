@@ -33,6 +33,13 @@ export interface Session {
   /** Path to the session's transcript JSONL (from hook payloads). For the
    * AskUserQuestion scanner. Local path; only exposed on localhost /state. */
   transcriptPath?: string;
+  /**
+   * The PID chain from the hook process up to the terminal — captured by the
+   * hook forwarder (setup/hook.mjs). The integrated terminal's shell PID is in
+   * here, so the extension can match this session to its terminal tab
+   * (`terminal.processId`) and focus it on click. Localhost-only, like cwd.
+   */
+  ancestorPids?: number[];
   /** ISO timestamp of last update. */
   updatedAt: string;
 }

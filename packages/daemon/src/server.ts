@@ -6,6 +6,11 @@ import { sleepController } from "./sleep.js";
 import { ingestHook } from "./hooks.js";
 import { ingestUsage } from "./usage.js";
 import { startAttentionScanner } from "./attention.js";
+import { raiseWindow } from "./focus.js";
+
+/** Minimal shape of the @fastify/websocket socket we use (avoids a @types/ws
+ * dependency just for broadcasting). */
+type WsLike = { readyState: number; OPEN: number; send: (data: string) => void };
 
 /**
  * Builds the Fastify app. Increment 1 wires only /health, /state, and the
@@ -36,6 +41,18 @@ export async function buildServer(): Promise<FastifyInstance> {
   app.addContentTypeParser("*", { parseAs: "string" }, tolerantJson);
 
   await app.register(websocket);
+
+  // Cross-window focus coordination. Every editor window holds a WS connection;
+  // a focus request is broadcast to all of them, and whichever window owns the
+  // session's terminal claims it (revealing the tab + raising itself). We track
+  // open sockets here to broadcast, and correlate each request to its claim so
+  // the clicking window learns whether anyone could handle it.
+  const clients = new Set<WsLike>();
+  const pendingFocus = new Map<string, { resolve: (claimed: boolean) => void; timer: NodeJS.Timeout }>();
+  const broadcast = (obj: unknown): void => {
+    const data = JSON.stringify(obj);
+    for (const s of clients) if (s.readyState === s.OPEN) s.send(data);
+  };
 
   // Liveness — used by launchd KeepAlive checks and the VS Code client.
   app.get("/health", async () => ({ ok: true, ts: new Date().toISOString() }));
@@ -82,9 +99,49 @@ export async function buildServer(): Promise<FastifyInstance> {
     },
   );
 
+  // Request that the window owning `sessionId`'s terminal focus it. Broadcasts
+  // to all windows, then waits briefly for one to claim it. Returns
+  // { claimed } so the clicking window can toast if nobody could.
+  app.post<{ Body: { sessionId?: string } }>("/focus", async (req) => {
+    const sessionId = req.body?.sessionId;
+    if (!sessionId) return { ok: false, claimed: false, reason: "no-session" };
+    const session = store.getState().sessions.find((s) => s.sessionId === sessionId);
+    if (!session?.ancestorPids?.length) {
+      return { ok: false, claimed: false, reason: "no-locator" };
+    }
+
+    broadcast({ type: "focus", sessionId });
+
+    const claimed = await new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        pendingFocus.delete(sessionId);
+        resolve(false);
+      }, 1200);
+      pendingFocus.set(sessionId, { resolve, timer });
+    });
+    return { ok: true, claimed };
+  });
+
+  // The owning window claims a focus request: raise its window (by folder) and
+  // resolve the pending /focus so the clicker stops waiting.
+  app.post<{ Body: { sessionId?: string; folder?: string } }>("/focus/claim", async (req) => {
+    const { sessionId, folder } = req.body ?? {};
+    if (folder) raiseWindow(folder);
+    if (sessionId) {
+      const pending = pendingFocus.get(sessionId);
+      if (pending) {
+        clearTimeout(pending.timer);
+        pendingFocus.delete(sessionId);
+        pending.resolve(true);
+      }
+    }
+    return { ok: true };
+  });
+
   // WS push: send the current snapshot on connect, then on every store change.
   app.register(async (scoped) => {
     scoped.get("/events", { websocket: true }, (socket) => {
+      clients.add(socket as unknown as WsLike);
       const send = () => {
         if (socket.readyState === socket.OPEN) {
           socket.send(JSON.stringify(store.getState()));
@@ -94,8 +151,12 @@ export async function buildServer(): Promise<FastifyInstance> {
       send(); // initial snapshot on connect
       store.on("change", send);
 
-      socket.on("close", () => store.off("change", send));
-      socket.on("error", () => store.off("change", send));
+      const cleanup = () => {
+        store.off("change", send);
+        clients.delete(socket as unknown as WsLike);
+      };
+      socket.on("close", cleanup);
+      socket.on("error", cleanup);
     });
   });
 

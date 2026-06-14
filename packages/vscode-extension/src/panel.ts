@@ -41,6 +41,10 @@ export function panelHtml(
     --dim:var(--vscode-descriptionForeground,#808080);}
   .hud-sec{padding:11px 14px;border-top:1px solid var(--border);}
   .hud-row{display:flex;align-items:center;gap:11px;padding:8px 4px 8px 10px;}
+  .hud-go{cursor:pointer;}
+  .hud-go:hover{background:var(--widget);}
+  .hud-go:hover .hud-goto{opacity:1;}
+  .hud-goto{opacity:0;color:var(--dim);font-size:10px;flex:none;transition:opacity .12s ease;}
   .hud-label{display:inline-flex;align-items:center;gap:8px;width:80px;flex:none;}
   .hud-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .hud-age{color:var(--dim);font-size:11px;flex:none;}
@@ -65,6 +69,8 @@ export function panelHtml(
     b.addEventListener('click', () => vscode.postMessage({ cmd: 'sleepLevel', level: Number(b.dataset.level) })));
   document.querySelectorAll('[data-group]').forEach((b) =>
     b.addEventListener('click', () => vscode.postMessage({ cmd: 'toggleGroup', group: b.dataset.group })));
+  document.querySelectorAll('[data-goto]').forEach((el) =>
+    el.addEventListener('click', () => vscode.postMessage({ cmd: 'goToSession', sessionId: el.dataset.goto })));
 </script></body></html>`;
 }
 
@@ -242,7 +248,7 @@ function label(x: Session): string {
 
 function waitingCard(x: Session): string {
   const msg = x.lastMessage || "Claude needs your input";
-  return `<div class="hud-glow" style="border:1px solid color-mix(in srgb,var(--warn) 48%,transparent);border-left:2px solid var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent);border-radius:9px;overflow:hidden;">
+  return `<div class="hud-glow hud-go" data-goto="${esc(x.sessionId)}" title="Go to this session's terminal" style="border:1px solid color-mix(in srgb,var(--warn) 48%,transparent);border-left:2px solid var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent);border-radius:9px;overflow:hidden;">
     <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;">
       <span style="display:inline-flex;align-items:center;gap:8px;width:80px;flex:none;color:var(--warn);">
         <span style="width:13px;display:inline-flex;justify-content:center;"><span class="hud-pulse" style="width:8px;height:8px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 22%,transparent);"></span></span>
@@ -264,24 +270,26 @@ function runningRow(x: Session): string {
   const bars = delays
     .map((d) => `<span class="hud-eqbar" style="background:var(--green);animation-delay:${d};"></span>`)
     .join("");
-  return `<div class="hud-row" style="border-left:2px solid var(--green);">
+  return `<div class="hud-row hud-go" data-goto="${esc(x.sessionId)}" title="Go to this session's terminal" style="border-left:2px solid var(--green);">
     <span class="hud-label" style="color:var(--green);">
       <span style="width:13px;display:inline-flex;align-items:flex-end;justify-content:center;gap:2px;height:11px;">${bars}</span>
       <span style="font-size:11px;">running</span>
     </span>
     <span class="hud-name" style="color:var(--vscode-foreground);">${esc(label(x))}</span>
+    <span class="hud-goto">↪</span>
     <span class="hud-age">${relAge(x.updatedAt)}</span>
   </div>`;
 }
 
 function readyRow(x: Session): string {
-  return `<div class="hud-row" style="border-left:2px solid var(--blue);">
+  return `<div class="hud-row hud-go" data-goto="${esc(x.sessionId)}" title="Go to this session's terminal" style="border-left:2px solid var(--blue);">
     <span class="hud-label" style="color:var(--blue);">
       <span style="width:13px;display:inline-flex;justify-content:center;font-size:9px;line-height:1;">◆</span>
       <span style="font-size:11px;">ready</span>
     </span>
     <span class="hud-name" style="color:var(--vscode-foreground);">${esc(label(x))}</span>
     <span style="margin-left:auto;display:inline-flex;align-items:center;gap:9px;flex:none;">
+      <span class="hud-goto">↪</span>
       <span style="font-size:10px;color:var(--blue);font-weight:600;letter-spacing:.03em;">your move</span>
       <span class="hud-age">${relAge(x.updatedAt)}</span>
     </span>
@@ -289,12 +297,13 @@ function readyRow(x: Session): string {
 }
 
 function idleRow(x: Session): string {
-  return `<div class="hud-row" style="border-left:2px solid var(--border);">
+  return `<div class="hud-row hud-go" data-goto="${esc(x.sessionId)}" title="Go to this session's terminal" style="border-left:2px solid var(--border);">
     <span class="hud-label" style="color:var(--dim);">
       <span style="width:13px;display:inline-flex;justify-content:center;"><span style="width:7px;height:7px;border-radius:50%;border:1.5px solid var(--dim);opacity:.55;"></span></span>
       <span style="font-size:11px;">idle</span>
     </span>
     <span class="hud-name">${esc(label(x))}</span>
+    <span class="hud-goto">↪</span>
     <span class="hud-age">${relAge(x.updatedAt)}</span>
   </div>`;
 }
