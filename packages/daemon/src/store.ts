@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { config } from "./config.js";
 import { resolveProjectName } from "./project.js";
 import type {
+  AgentKind,
   HudState,
   NotifyLevel,
   NotifyState,
@@ -43,16 +44,22 @@ class Store extends EventEmitter {
     this.emitChange();
   }
 
-  /** Create or update a session's status. Used by the hook ingestion layer. */
+  /** Create or update a session's status. Used by the hook ingestion layer.
+   * Everything past status is optional metadata, bundled in `opts` so the
+   * signature doesn't grow a param per vendor/feature. */
   upsertSession(
     sessionId: string,
     cwd: string,
     status: SessionStatus,
-    lastMessage?: string,
-    transcriptPath?: string,
-    ancestorPids?: number[],
-    claudePid?: number,
+    opts: {
+      lastMessage?: string;
+      transcriptPath?: string;
+      ancestorPids?: number[];
+      agentPid?: number;
+      agent?: AgentKind;
+    } = {},
   ): void {
+    const { lastMessage, transcriptPath, ancestorPids, agentPid, agent } = opts;
     const existing = this.sessions.get(sessionId);
 
     // Attention reason follows status: a hook-driven "waiting" is a permission
@@ -67,6 +74,8 @@ class Store extends EventEmitter {
       projectName: cwd ? resolveProjectName(cwd) : (existing?.projectName ?? "unknown"),
       // Name only comes from statusLine; preserve it across hook updates.
       name: existing?.name,
+      // Which tool drives this session — preserved once known; defaults Claude.
+      agent: agent ?? existing?.agent ?? "claude-code",
       status,
       // Only overwrite lastMessage when a new one is supplied; otherwise keep it.
       lastMessage: lastMessage ?? existing?.lastMessage,
@@ -74,7 +83,7 @@ class Store extends EventEmitter {
       transcriptPath: transcriptPath ?? existing?.transcriptPath,
       // PID chain is set once (SessionStart) and preserved across later hooks.
       ancestorPids: ancestorPids ?? existing?.ancestorPids,
-      claudePid: claudePid ?? existing?.claudePid,
+      agentPid: agentPid ?? existing?.agentPid,
       updatedAt: nowIso(),
     };
     this.sessions.set(sessionId, session);
@@ -200,7 +209,7 @@ class Store extends EventEmitter {
       // Sessions whose claude PID we know are managed by the liveness sweep
       // (pruneDeadSessions) — never time-prune them, so an idle-but-alive agent
       // doesn't vanish when you step away or the Mac sleeps.
-      if (s.claudePid) continue;
+      if (s.agentPid) continue;
       if (Date.parse(s.updatedAt) < cutoff) {
         this.sessions.delete(id);
         changed = true;
@@ -214,12 +223,12 @@ class Store extends EventEmitter {
    * Drop sessions whose `claude` process is gone (crash, quit, tab closed).
    * Called on a timer — this is the real "is it still running?" check, replacing
    * inactivity-based pruning for sessions we can track. Sessions without a known
-   * claudePid (legacy/forwarder-less) fall back to pruneStale's time cutoff.
+   * agentPid (legacy/forwarder-less) fall back to pruneStale's time cutoff.
    */
   pruneDeadSessions(): void {
     let changed = false;
     for (const [id, s] of this.sessions) {
-      if (s.claudePid && !isProcessAlive(s.claudePid)) {
+      if (s.agentPid && !isProcessAlive(s.agentPid)) {
         this.sessions.delete(id);
         changed = true;
       }
@@ -256,7 +265,8 @@ function visiblyEqual(a: Session | undefined, b: Session): boolean {
     a.status === b.status &&
     a.lastMessage === b.lastMessage &&
     a.name === b.name &&
-    a.projectName === b.projectName
+    a.projectName === b.projectName &&
+    a.agent === b.agent
   );
 }
 

@@ -57,8 +57,32 @@ test("unknown event is tolerated, leaves status unchanged", async () => {
   assert.equal(findStatus("s7"), "running");
 });
 
-const findPids = (id: string) =>
-  store.getState().sessions.find((s) => s.sessionId === id)?.ancestorPids;
+const findSession = (id: string) =>
+  store.getState().sessions.find((s) => s.sessionId === id);
+const findPids = (id: string) => findSession(id)?.ancestorPids;
+
+test("Codex PermissionRequest → waiting", async () => {
+  await ingestHook({ session_id: "c1", hook_event_name: "SessionStart", cwd: "/tmp/p", agent_hud_agent: "codex" });
+  await ingestHook({ session_id: "c1", hook_event_name: "PermissionRequest", cwd: "/tmp/p", agent_hud_agent: "codex" });
+  assert.equal(findSession("c1")?.status, "waiting");
+});
+
+test("Codex UserPromptSubmit derives a task name from the prompt", async () => {
+  await ingestHook({ session_id: "c4", hook_event_name: "SessionStart", cwd: "/tmp/p", agent_hud_agent: "codex" });
+  await ingestHook({ session_id: "c4", hook_event_name: "UserPromptSubmit", cwd: "/tmp/p", agent_hud_agent: "codex", prompt: "  Refactor the   auth module  " });
+  assert.equal(findSession("c4")?.name, "Refactor the auth module");
+  // Claude must NOT get its name from the raw prompt (statusLine owns it).
+  await ingestHook({ session_id: "c5", hook_event_name: "SessionStart", cwd: "/tmp/p" });
+  await ingestHook({ session_id: "c5", hook_event_name: "UserPromptSubmit", cwd: "/tmp/p", prompt: "do a thing" });
+  assert.equal(findSession("c5")?.name, undefined);
+});
+
+test("agent provenance: agent_hud_agent tags the session", async () => {
+  await ingestHook({ session_id: "c2", hook_event_name: "SessionStart", cwd: "/tmp/p", agent_hud_agent: "codex" });
+  assert.equal(findSession("c2")?.agent, "codex");
+  await ingestHook({ session_id: "c3", hook_event_name: "SessionStart", cwd: "/tmp/p" });
+  assert.equal(findSession("c3")?.agent, "claude-code", "defaults to claude-code when unset");
+});
 
 test("forwarder's ancestor PIDs are captured and preserved across hooks", async () => {
   await ingestHook({

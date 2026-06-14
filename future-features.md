@@ -141,7 +141,39 @@ Code exposes one.
 
 ---
 
-## 3. Support for Codex
+## 3. Support for Codex ✅ SHIPPED (CLI)
+
+**Status:** built and verified for the **Codex CLI** (terminal). Implementation:
+
+- **Same forwarder, tagged.** Codex's `config.toml` hooks run `hook.mjs codex`; the
+  forwarder injects `agent_hud_agent` and matches the `codex` process for liveness.
+  Codex's stdin payload uses the **same field names as Claude** (`session_id`,
+  `hook_event_name`, `cwd`, `transcript_path`) — confirmed against a real payload —
+  so `ingestHook` needed no parser changes.
+- **Provenance.** `Session.agent: "claude-code" | "codex"`; a green **CDX** badge in
+  the HUD. `upsertSession` now takes an options object to contain param growth.
+- **Cleaner waiting.** `PermissionRequest → waiting` (no message-string heuristic).
+  Codex has **no `SessionEnd`** event, so cleanup relies on liveness pruning (the
+  `agentPid` check) — which works because the `codex` process dies on exit.
+- **Reuses everything:** click-to-session works (the terminal shell PID is in the
+  captured chain), notifications fire (the notifier is agent-agnostic), liveness
+  keeps idle Codex sessions alive.
+- **Task names.** Codex has no statusLine, so the row label is derived from the
+  `UserPromptSubmit` `prompt` instead of "session 019ec8".
+- **`install.sh`** appends the Codex hooks to `~/.codex/config.toml` (idempotent,
+  backup), skipped if `~/.codex` is absent.
+
+**Caveats learned:**
+- Only the **CLI** is supported, not the Codex **IDE extension** (no terminal
+  process / PID chain; its local state is undocumented sqlite + rollout JSONL).
+- Hooks fire in **interactive** Codex, **not** `codex exec` (headless) — verified.
+- Codex **prompts to trust** the hooks on first run; untrusted hooks are silently
+  skipped.
+- **Limits/usage** stays Claude-only (Codex has no `rate_limits` statusline).
+
+Original notes below.
+
+---
 
 **Goal:** observe OpenAI **Codex CLI** sessions in the same HUD, side-by-side with
 Claude Code agents — same session list, same `waiting`/`ready`/`running`/`idle`

@@ -78,6 +78,34 @@ fs.writeFileSync(p, JSON.stringify(s, null, 2) + '\n');
 console.log('  hooks:', Object.keys(s.hooks).join(', '));
 NODE
 
+# 4b. Wire Codex CLI hooks (optional) — same forwarder, tagged `codex`. Codex
+#     reads ~/.codex/config.toml; we append array-of-tables hook entries (valid
+#     TOML at EOF) once, with a backup. Skipped if Codex isn't installed.
+CODEX_CFG="$HOME/.codex/config.toml"
+if [ -d "$HOME/.codex" ]; then
+  echo "▸ wiring Codex hooks…"
+  mkdir -p "$HOME/.codex"; [ -f "$CODEX_CFG" ] || : > "$CODEX_CFG"
+  if grep -q "hook.mjs codex" "$CODEX_CFG" 2>/dev/null; then
+    echo "  already wired"
+  else
+    cp "$CODEX_CFG" "$CODEX_CFG.bak.$(date +%s)" 2>/dev/null || true
+    {
+      echo ""
+      echo "# --- agent-hud (Codex → HUD) ---"
+      for EV in SessionStart UserPromptSubmit PreToolUse PostToolUse PermissionRequest Stop; do
+        echo "[[hooks.$EV]]"
+        echo "[[hooks.$EV.hooks]]"
+        echo 'type = "command"'
+        echo "command = '$NODE_BIN $REPO/setup/hook.mjs codex'"
+        echo ""
+      done
+    } >> "$CODEX_CFG"
+    echo "  wired → $CODEX_CFG (Codex will prompt to trust the hooks on first run)"
+  fi
+else
+  echo "▸ Codex not detected (~/.codex absent) — skipping Codex hooks"
+fi
+
 # 5. Clamshell (lid-closed) keep-awake needs a scoped sudoers drop-in (root).
 SUDOERS_TMP="$(mktemp)"
 sed "s|__USER__|$USER_NAME|g" "$REPO/setup/sudoers-agent-hud.template" > "$SUDOERS_TMP"

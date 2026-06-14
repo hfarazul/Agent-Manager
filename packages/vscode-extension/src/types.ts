@@ -3,10 +3,14 @@
 
 export type SessionStatus = "running" | "waiting" | "ready" | "idle";
 
+export type AgentKind = "claude-code" | "codex";
+
 export interface Session {
   sessionId: string;
   cwd: string;
   projectName: string;
+  /** Which agent tool this session belongs to. */
+  agent: AgentKind;
   /** Claude Code session task name, e.g. "Review vision.md document". */
   name?: string;
   status: SessionStatus;
@@ -16,6 +20,7 @@ export interface Session {
   /** PID chain from the hook up to the terminal shell — the shell PID matches
    * `terminal.processId`, letting us focus this session's tab on click. */
   ancestorPids?: number[];
+  agentPid?: number;
   updatedAt: string;
 }
 

@@ -26,15 +26,15 @@ test("question attention sets and clears, scoped to its own reason", () => {
 });
 
 test("scanner must NOT clear a permission (notification) waiting", () => {
-  store.upsertSession("q2", "/tmp/p", "waiting", "permission"); // notification-driven
+  store.upsertSession("q2", "/tmp/p", "waiting", { lastMessage: "permission" }); // notification-driven
   store.setQuestionAttention("q2", false, "");
   assert.equal(get("q2")?.status, "waiting", "permission waiting is left alone");
 });
 
 test("liveness: a session with a dead claude PID is pruned, a live one is kept", () => {
   // process.pid is definitely alive; 999999 is above macOS's max PID → dead.
-  store.upsertSession("alive", "/tmp/p", "running", undefined, undefined, undefined, process.pid);
-  store.upsertSession("dead", "/tmp/p", "running", undefined, undefined, undefined, 999999);
+  store.upsertSession("alive", "/tmp/p", "running", { agentPid: process.pid });
+  store.upsertSession("dead", "/tmp/p", "running", { agentPid: 999999 });
   store.pruneDeadSessions();
   assert.ok(get("alive"), "session with a live claude process is kept");
   assert.equal(get("dead"), undefined, "session with a dead claude process is pruned");

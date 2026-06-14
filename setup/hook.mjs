@@ -22,6 +22,12 @@ import { execSync } from "node:child_process";
 
 const DAEMON = process.env.AGENT_HUD_URL ?? "http://127.0.0.1:7842";
 
+// Which agent this forwarder serves — passed as argv (e.g. `node hook.mjs codex`)
+// or env. Defaults to Claude Code. Drives both provenance and which ancestor
+// process is the "agent" for liveness.
+const AGENT = process.argv[2] || process.env.AGENT_HUD_AGENT || "claude-code";
+const AGENT_COMM = AGENT === "codex" ? "codex" : "claude";
+
 let raw = "";
 for await (const chunk of stdin) raw += chunk;
 
@@ -33,12 +39,13 @@ try {
 }
 
 // Best-effort ancestry walk. One `ps` dump → pid→{ppid,comm} → walk up from us.
-// Captures the full chain (for terminal matching) AND the `claude` PID itself
+// Captures the full chain (for terminal matching) AND the agent PID itself
 // (for liveness — so an idle-but-alive session isn't pruned as "stale").
+data.agent_hud_agent = AGENT;
 try {
-  const { pids, claudePid } = ancestry(process.pid);
+  const { pids, agentPid } = ancestry(process.pid);
   if (pids.length) data.agent_hud_ancestor_pids = pids;
-  if (claudePid) data.agent_hud_claude_pid = claudePid;
+  if (agentPid) data.agent_hud_agent_pid = agentPid;
 } catch {
   /* ps unavailable — degrade silently; click-to-session just won't resolve */
 }
@@ -60,7 +67,7 @@ try {
 /**
  * Walk the chain of PIDs from `start` up to the root, e.g.
  * [node, sh, claude, zsh, login, …]. Returns the full chain (the zsh entry is
- * terminal.processId) plus the PID whose command is `claude` (the agent process,
+ * terminal.processId) plus the PID whose command is the agent (`claude`/`codex`,
  * used for liveness checks).
  */
 function ancestry(start) {
@@ -75,19 +82,19 @@ function ancestry(start) {
     }
   }
   const chain = [];
-  let claudePid;
+  let agentPid;
   let pid = start;
   const seen = new Set();
   while (pid > 1 && !seen.has(pid)) {
     seen.add(pid);
     chain.push(pid);
-    // The agent process names itself "claude" (basename match avoids the
-    // "Cursor.app" / "Claude.app" helpers).
+    // The agent process names itself "claude" / "codex" (basename match avoids
+    // the "Cursor.app" / "Claude.app" helpers).
     const base = (comm.get(pid) || "").split("/").pop();
-    if (!claudePid && base === "claude") claudePid = pid;
+    if (!agentPid && base === AGENT_COMM) agentPid = pid;
     const ppid = parent.get(pid);
     if (ppid === undefined) break;
     pid = ppid;
   }
-  return { pids: chain, claudePid };
+  return { pids: chain, agentPid };
 }

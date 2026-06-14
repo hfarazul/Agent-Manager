@@ -10,11 +10,16 @@
  */
 export type SessionStatus = "running" | "waiting" | "ready" | "idle";
 
+/** Which tool drives the session. */
+export type AgentKind = "claude-code" | "codex";
+
 export interface Session {
   sessionId: string;
   cwd: string;
   /** Derived from cwd basename — used to group sessions by project. */
   projectName: string;
+  /** Which agent tool this session belongs to (default "claude-code"). */
+  agent: AgentKind;
   /**
    * The Claude Code session's task name (e.g. "Review vision.md document").
    * Comes from the statusLine payload's `session_name`, not from hooks, so it
@@ -41,11 +46,12 @@ export interface Session {
    */
   ancestorPids?: number[];
   /**
-   * The PID of the `claude` process itself (from the hook forwarder). Used for
-   * liveness: an idle-but-alive session fires no hooks, so we keep it as long as
-   * this process exists rather than time-pruning it. localhost-only.
+   * The PID of the agent process itself (`claude` or `codex`), from the hook
+   * forwarder. Used for liveness: an idle-but-alive session fires no hooks, so we
+   * keep it as long as this process exists rather than time-pruning it.
+   * localhost-only.
    */
-  claudePid?: number;
+  agentPid?: number;
   /** ISO timestamp of last update. */
   updatedAt: string;
 }
