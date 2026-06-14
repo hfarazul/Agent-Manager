@@ -23,6 +23,8 @@ class Store extends EventEmitter {
 
   private usage: UsageState = { source: "none", updatedAt: nowIso() };
 
+  private codexUsage: UsageState | undefined;
+
   private notify: NotifyState = { level: config.notifyLevel };
 
   /** Full snapshot, with stale sessions pruned. */
@@ -34,8 +36,14 @@ class Store extends EventEmitter {
         a.projectName.localeCompare(b.projectName),
       ),
       usage: { ...this.usage },
+      codexUsage: this.codexUsage ? { ...this.codexUsage } : undefined,
       notify: { ...this.notify },
     };
+  }
+
+  setCodexUsage(usage: UsageState): void {
+    this.codexUsage = usage;
+    this.emitChange();
   }
 
   setNotifyLevel(level: NotifyLevel): void {

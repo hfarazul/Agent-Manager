@@ -67,16 +67,6 @@ test("Codex PermissionRequest → waiting", async () => {
   assert.equal(findSession("c1")?.status, "waiting");
 });
 
-test("Codex UserPromptSubmit derives a task name from the prompt", async () => {
-  await ingestHook({ session_id: "c4", hook_event_name: "SessionStart", cwd: "/tmp/p", agent_hud_agent: "codex" });
-  await ingestHook({ session_id: "c4", hook_event_name: "UserPromptSubmit", cwd: "/tmp/p", agent_hud_agent: "codex", prompt: "  Refactor the   auth module  " });
-  assert.equal(findSession("c4")?.name, "Refactor the auth module");
-  // Claude must NOT get its name from the raw prompt (statusLine owns it).
-  await ingestHook({ session_id: "c5", hook_event_name: "SessionStart", cwd: "/tmp/p" });
-  await ingestHook({ session_id: "c5", hook_event_name: "UserPromptSubmit", cwd: "/tmp/p", prompt: "do a thing" });
-  assert.equal(findSession("c5")?.name, undefined);
-});
-
 test("agent provenance: agent_hud_agent tags the session", async () => {
   await ingestHook({ session_id: "c2", hook_event_name: "SessionStart", cwd: "/tmp/p", agent_hud_agent: "codex" });
   assert.equal(findSession("c2")?.agent, "codex");

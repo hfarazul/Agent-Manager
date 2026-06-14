@@ -114,6 +114,7 @@ function content(s: HudState, collapsed: Set<string>): string {
     ${s.sessions.length === 0 ? emptySessions() : renderGroups(s.sessions, collapsed)}
   </div>
   ${limits(s.usage)}
+  ${s.codexUsage && (s.codexUsage.session || s.codexUsage.weekly) ? limitsSection("CODEX LIMITS", s.codexUsage) : ""}
   ${awakeSection(s.sleep)}
   ${notifySection(s.notify)}`;
 }
@@ -277,13 +278,6 @@ function label(x: Session): string {
   return x.name || `session ${x.sessionId.slice(0, 6)}`;
 }
 
-/** A small chip marking non-Claude agents (Codex). Empty for Claude Code so the
- * default case stays clean. */
-function agentTag(x: Session): string {
-  if (x.agent !== "codex") return "";
-  return `<span title="OpenAI Codex" style="font-size:9px;font-weight:700;letter-spacing:.04em;color:#10a37f;border:1px solid color-mix(in srgb,#10a37f 55%,transparent);border-radius:4px;padding:1px 4px;margin-right:7px;flex:none;">CDX</span>`;
-}
-
 function waitingCard(x: Session): string {
   const msg = x.lastMessage || "Claude needs your input";
   return `<div class="hud-glow hud-go" data-goto="${esc(x.sessionId)}" title="Go to this session's terminal" style="border:1px solid color-mix(in srgb,var(--warn) 48%,transparent);border-left:2px solid var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent);border-radius:9px;overflow:hidden;">
@@ -292,7 +286,7 @@ function waitingCard(x: Session): string {
         <span style="width:13px;display:inline-flex;justify-content:center;"><span class="hud-pulse" style="width:8px;height:8px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 22%,transparent);"></span></span>
         <span style="font-size:11px;font-weight:700;">waiting</span>
       </span>
-      ${agentTag(x)}<span class="hud-name" style="color:var(--vscode-foreground);font-weight:600;">${esc(label(x))}</span>
+      <span class="hud-name" style="color:var(--vscode-foreground);font-weight:600;">${esc(label(x))}</span>
       <span class="hud-age">${relAge(x.updatedAt)}</span>
     </div>
     <div style="display:flex;align-items:center;gap:9px;margin:0 12px 11px;padding:8px 10px;background:var(--widget);border:1px solid var(--border);border-radius:7px;">
@@ -313,7 +307,7 @@ function runningRow(x: Session): string {
       <span style="width:13px;display:inline-flex;align-items:flex-end;justify-content:center;gap:2px;height:11px;">${bars}</span>
       <span style="font-size:11px;">running</span>
     </span>
-    ${agentTag(x)}<span class="hud-name" style="color:var(--vscode-foreground);">${esc(label(x))}</span>
+    <span class="hud-name" style="color:var(--vscode-foreground);">${esc(label(x))}</span>
     <span class="hud-goto">↪</span>
     <span class="hud-age">${relAge(x.updatedAt)}</span>
   </div>`;
@@ -325,7 +319,7 @@ function readyRow(x: Session): string {
       <span style="width:13px;display:inline-flex;justify-content:center;font-size:9px;line-height:1;">◆</span>
       <span style="font-size:11px;">ready</span>
     </span>
-    ${agentTag(x)}<span class="hud-name" style="color:var(--vscode-foreground);">${esc(label(x))}</span>
+    <span class="hud-name" style="color:var(--vscode-foreground);">${esc(label(x))}</span>
     <span style="margin-left:auto;display:inline-flex;align-items:center;gap:9px;flex:none;">
       <span class="hud-goto">↪</span>
       <span style="font-size:10px;color:var(--blue);font-weight:600;letter-spacing:.03em;">your move</span>
@@ -340,7 +334,7 @@ function idleRow(x: Session): string {
       <span style="width:13px;display:inline-flex;justify-content:center;"><span style="width:7px;height:7px;border-radius:50%;border:1.5px solid var(--dim);opacity:.55;"></span></span>
       <span style="font-size:11px;">idle</span>
     </span>
-    ${agentTag(x)}<span class="hud-name">${esc(label(x))}</span>
+    <span class="hud-name">${esc(label(x))}</span>
     <span class="hud-goto">↪</span>
     <span class="hud-age">${relAge(x.updatedAt)}</span>
   </div>`;
@@ -352,6 +346,7 @@ function emptySessions(): string {
 
 /* ─────────────────────────── limits ─────────────────────────── */
 
+/** Claude Code limits (with the "no data yet" empty state). */
 function limits(usage: HudState["usage"]): string {
   if (!usage.session && !usage.weekly) {
     return `<div class="hud-sec">
@@ -359,10 +354,15 @@ function limits(usage: HudState["usage"]): string {
       <div style="font-size:11px;color:var(--dim);">no data yet · statusline pushes while a session is live</div>
     </div>`;
   }
+  return limitsSection("CLAUDE CODE LIMITS", usage);
+}
+
+/** A limits panel for any agent's usage (5h + weekly gauges). */
+function limitsSection(title: string, usage: HudState["usage"]): string {
   return `<div class="hud-sec">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;">
-      <span style="font-size:10px;letter-spacing:.11em;color:var(--dim);">CLAUDE CODE LIMITS</span>
-      <span style="margin-left:auto;font-size:10px;color:var(--dim);">via ${usage.source}</span>
+      <span style="font-size:10px;letter-spacing:.11em;color:var(--dim);">${esc(title)}</span>
+      <span style="margin-left:auto;font-size:10px;color:var(--dim);">via ${esc(usage.source)}</span>
     </div>
     ${usage.session ? gaugeRow("5h", usage.session) : ""}
     ${usage.weekly ? gaugeRow("7d", usage.weekly, true) : ""}

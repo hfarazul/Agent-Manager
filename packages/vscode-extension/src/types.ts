@@ -40,7 +40,7 @@ export interface UsageState {
   weeklySonnet?: UsageWindow;
   tokensToday?: number;
   costToday?: number;
-  source: "statusline" | "oauth" | "ccusage" | "none";
+  source: "statusline" | "oauth" | "ccusage" | "codex" | "none";
   updatedAt: string;
 }
 
@@ -54,5 +54,6 @@ export interface HudState {
   sleep: SleepState;
   sessions: Session[];
   usage: UsageState;
+  codexUsage?: UsageState;
   notify: NotifyState;
 }

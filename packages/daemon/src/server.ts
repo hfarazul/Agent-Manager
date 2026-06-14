@@ -7,6 +7,7 @@ import { ingestHook } from "./hooks.js";
 import { ingestUsage } from "./usage.js";
 import { startAttentionScanner } from "./attention.js";
 import { startNotifier } from "./notifier.js";
+import { startCodexSweep } from "./codex.js";
 import { raiseWindow } from "./focus.js";
 import type { NotifyLevel } from "./types.js";
 
@@ -248,6 +249,8 @@ export async function startServer(): Promise<FastifyInstance> {
   startAttentionScanner();
   // Fire OS notifications on session transitions (→ waiting, optionally → ready).
   startNotifier();
+  // Enrich Codex sessions: names (session_index.jsonl) + 5h/weekly limits (rollout).
+  startCodexSweep();
   // Liveness sweep: drop sessions whose claude process has exited. Runs on a
   // timer (not inactivity) so idle-but-alive agents persist. unref() so it never
   // keeps the process alive on its own.

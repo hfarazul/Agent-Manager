@@ -158,8 +158,13 @@ Code exposes one.
 - **Reuses everything:** click-to-session works (the terminal shell PID is in the
   captured chain), notifications fire (the notifier is agent-agnostic), liveness
   keeps idle Codex sessions alive.
-- **Task names.** Codex has no statusLine, so the row label is derived from the
-  `UserPromptSubmit` `prompt` instead of "session 019ec8".
+- **Task names.** Codex has no statusLine, so names come from its own
+  `~/.codex/session_index.jsonl` (`thread_name`, e.g. "review of the Repo"),
+  refreshed by a periodic sweep (`codex.ts`).
+- **Codex limits.** Codex's 5h/weekly limits live in the rollout's `token_count`
+  `rate_limits` (`primary`/`secondary` → `used_percent` + `resets_at`). The sweep
+  reads the newest live Codex session's rollout into `codexUsage`; the HUD shows a
+  separate "CODEX LIMITS" panel.
 - **`install.sh`** appends the Codex hooks to `~/.codex/config.toml` (idempotent,
   backup), skipped if `~/.codex` is absent.
 
@@ -169,7 +174,7 @@ Code exposes one.
 - Hooks fire in **interactive** Codex, **not** `codex exec` (headless) — verified.
 - Codex **prompts to trust** the hooks on first run; untrusted hooks are silently
   skipped.
-- **Limits/usage** stays Claude-only (Codex has no `rate_limits` statusline).
+- Only the **CLI** is supported; the IDE extension's session/usage state isn't read.
 
 Original notes below.
 

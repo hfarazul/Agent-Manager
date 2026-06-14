@@ -19,9 +19,6 @@ interface HookPayload {
   cwd?: string;
   transcript_path?: string;
   message?: string;
-  /** Codex UserPromptSubmit carries the user's prompt — used as a task label
-   * since Codex has no statusLine to supply a name. */
-  prompt?: unknown;
   /** PID chain injected by the hook forwarder (setup/hook.mjs) — used to map a
    * session to its terminal tab for click-to-session. */
   agent_hud_ancestor_pids?: unknown;
@@ -131,17 +128,8 @@ export async function ingestHook(body: unknown): Promise<HookResult> {
     agent: extractAgent(payload),
   });
 
-  // Codex has no statusLine to name the session, so derive a label from the
-  // user's prompt — Codex rows then read like a task, not "session 019ec8".
-  // (Claude Code gets its name from statusLine, which is better, so skip it.)
-  if (
-    event === "UserPromptSubmit" &&
-    extractAgent(payload) === "codex" &&
-    typeof payload.prompt === "string"
-  ) {
-    const name = payload.prompt.replace(/\s+/g, " ").trim().slice(0, 60);
-    if (name) store.setSessionName(sessionId, name, payload.cwd);
-  }
+  // Codex session names come from ~/.codex/session_index.jsonl (thread_name),
+  // refreshed by the Codex sweep in codex.ts — not from the raw prompt.
 
   return { ok: true, event, action: "upsert" };
 }

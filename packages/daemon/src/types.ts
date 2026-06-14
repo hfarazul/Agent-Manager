@@ -77,7 +77,7 @@ export interface UsageState {
   weeklySonnet?: UsageWindow;
   tokensToday?: number;
   costToday?: number;
-  source: "statusline" | "oauth" | "ccusage" | "none";
+  source: "statusline" | "oauth" | "ccusage" | "codex" | "none";
   updatedAt: string;
 }
 
@@ -93,5 +93,8 @@ export interface HudState {
   sleep: SleepState;
   sessions: Session[];
   usage: UsageState;
+  /** Codex's own 5h/weekly limits (read from its rollout). Separate from `usage`
+   * because it's a different account/plan with independent windows. */
+  codexUsage?: UsageState;
   notify: NotifyState;
 }
