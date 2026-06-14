@@ -123,6 +123,19 @@ export class DaemonClient {
     }
   }
 
+  /** Set the OS-notification level on the daemon. */
+  async setNotify(level: "off" | "waiting" | "all"): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level }),
+      });
+    } catch {
+      /* daemon down — ignore */
+    }
+  }
+
   /** This window owns the session's terminal — tell the daemon to raise us. */
   async claimFocus(sessionId: string, folder: string | undefined): Promise<void> {
     try {

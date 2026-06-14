@@ -22,6 +22,8 @@ interface HookPayload {
   /** PID chain injected by the hook forwarder (setup/hook.mjs) — used to map a
    * session to its terminal tab for click-to-session. */
   agent_hud_ancestor_pids?: unknown;
+  /** The `claude` process PID — used for liveness pruning. */
+  agent_hud_claude_pid?: unknown;
   [k: string]: unknown;
 }
 
@@ -31,6 +33,12 @@ function extractAncestorPids(payload: HookPayload): number[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const pids = raw.filter((n): n is number => typeof n === "number" && n > 0);
   return pids.length ? pids : undefined;
+}
+
+/** Read the forwarder's claude PID, tolerating any shape. */
+function extractClaudePid(payload: HookPayload): number | undefined {
+  const raw = payload.agent_hud_claude_pid;
+  return typeof raw === "number" && raw > 0 ? raw : undefined;
 }
 
 /** Map a Claude Code hook event name → our session status transition. */
@@ -105,6 +113,8 @@ export async function ingestHook(body: unknown): Promise<HookResult> {
     typeof payload.transcript_path === "string" ? payload.transcript_path : undefined,
     // Capture the PID chain so the extension can focus this session's terminal.
     extractAncestorPids(payload),
+    // Capture the claude PID for liveness-based pruning.
+    extractClaudePid(payload),
   );
 
   return { ok: true, event, action: "upsert" };

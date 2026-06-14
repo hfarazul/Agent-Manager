@@ -28,4 +28,16 @@ export const config = {
    * contain local paths + session metadata and the files grow unbounded.
    */
   debug: !!process.env.AGENT_HUD_DEBUG,
+
+  /**
+   * Default OS-notification level. "off" = none, "waiting" = only when a session
+   * blocks on you (permission/question — the high-value alert), "all" = also when
+   * a session finishes a turn ("ready"). Runtime-toggleable from the HUD (POST
+   * /notify); this is just the startup default.
+   */
+  notifyLevel: parseNotifyLevel(process.env.AGENT_HUD_NOTIFY),
 } as const;
+
+function parseNotifyLevel(v: string | undefined): "off" | "waiting" | "all" {
+  return v === "off" || v === "all" || v === "waiting" ? v : "waiting";
+}

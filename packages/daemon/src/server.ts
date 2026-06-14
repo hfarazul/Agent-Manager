@@ -6,7 +6,9 @@ import { sleepController } from "./sleep.js";
 import { ingestHook } from "./hooks.js";
 import { ingestUsage } from "./usage.js";
 import { startAttentionScanner } from "./attention.js";
+import { startNotifier } from "./notifier.js";
 import { raiseWindow } from "./focus.js";
+import type { NotifyLevel } from "./types.js";
 
 /** Minimal shape of the @fastify/websocket socket we use (avoids a @types/ws
  * dependency just for broadcasting). */
@@ -138,6 +140,15 @@ export async function buildServer(): Promise<FastifyInstance> {
     return { ok: true };
   });
 
+  // Set the OS-notification level. Body: { level: "off" | "waiting" | "all" }.
+  app.post<{ Body: { level?: string } }>("/notify", async (req) => {
+    const level = req.body?.level;
+    if (level === "off" || level === "waiting" || level === "all") {
+      store.setNotifyLevel(level as NotifyLevel);
+    }
+    return store.getState().notify;
+  });
+
   // WS push: send the current snapshot on connect, then on every store change.
   app.register(async (scoped) => {
     scoped.get("/events", { websocket: true }, (socket) => {
@@ -185,5 +196,11 @@ export async function startServer(): Promise<FastifyInstance> {
   app.log.info(`agent-hud daemon listening on http://${config.host}:${config.port}`);
   // Tail transcripts for AskUserQuestion waits the hooks can't see.
   startAttentionScanner();
+  // Fire OS notifications on session transitions (→ waiting, optionally → ready).
+  startNotifier();
+  // Liveness sweep: drop sessions whose claude process has exited. Runs on a
+  // timer (not inactivity) so idle-but-alive agents persist. unref() so it never
+  // keeps the process alive on its own.
+  setInterval(() => store.pruneDeadSessions(), 30_000).unref();
   return app;
 }

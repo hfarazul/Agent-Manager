@@ -40,6 +40,12 @@ export interface Session {
    * (`terminal.processId`) and focus it on click. Localhost-only, like cwd.
    */
   ancestorPids?: number[];
+  /**
+   * The PID of the `claude` process itself (from the hook forwarder). Used for
+   * liveness: an idle-but-alive session fires no hooks, so we keep it as long as
+   * this process exists rather than time-pruning it. localhost-only.
+   */
+  claudePid?: number;
   /** ISO timestamp of last update. */
   updatedAt: string;
 }
@@ -69,9 +75,17 @@ export interface UsageState {
   updatedAt: string;
 }
 
+/** OS-notification level (future-features.md §1). */
+export type NotifyLevel = "off" | "waiting" | "all";
+
+export interface NotifyState {
+  level: NotifyLevel;
+}
+
 /** The full snapshot every client polls / receives over WS. */
 export interface HudState {
   sleep: SleepState;
   sessions: Session[];
   usage: UsageState;
+  notify: NotifyState;
 }

@@ -39,8 +39,15 @@ export interface UsageState {
   updatedAt: string;
 }
 
+export type NotifyLevel = "off" | "waiting" | "all";
+
+export interface NotifyState {
+  level: NotifyLevel;
+}
+
 export interface HudState {
   sleep: SleepState;
   sessions: Session[];
   usage: UsageState;
+  notify: NotifyState;
 }

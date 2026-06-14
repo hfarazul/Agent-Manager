@@ -71,6 +71,8 @@ export function panelHtml(
     b.addEventListener('click', () => vscode.postMessage({ cmd: 'toggleGroup', group: b.dataset.group })));
   document.querySelectorAll('[data-goto]').forEach((el) =>
     el.addEventListener('click', () => vscode.postMessage({ cmd: 'goToSession', sessionId: el.dataset.goto })));
+  document.querySelectorAll('[data-notify]').forEach((b) =>
+    b.addEventListener('click', () => vscode.postMessage({ cmd: 'notifyLevel', level: b.dataset.notify })));
 </script></body></html>`;
 }
 
@@ -112,7 +114,8 @@ function content(s: HudState, collapsed: Set<string>): string {
     ${s.sessions.length === 0 ? emptySessions() : renderGroups(s.sessions, collapsed)}
   </div>
   ${limits(s.usage)}
-  ${awakeSection(s.sleep)}`;
+  ${awakeSection(s.sleep)}
+  ${notifySection(s.notify)}`;
 }
 
 function summary(run: number, wait: number, ready: number, idle: number): string {
@@ -149,6 +152,34 @@ function awakeSection(sleep: HudState["sleep"]): string {
     <div style="display:flex;align-items:center;gap:8px;margin-top:9px;font-size:11px;">
       <span style="width:7px;height:7px;border-radius:50%;flex:none;background:${level > 0 ? "var(--green)" : "var(--dim)"};opacity:${level > 0 ? 1 : 0.5};"></span>
       <span style="color:var(--dim);line-height:1.4;">${lines[level]}</span>
+    </div>
+  </div>`;
+}
+
+/* ─────────────────────────── notifications (segmented) ─────────────────────────── */
+
+function notifySection(notify: HudState["notify"]): string {
+  const level = notify?.level ?? "waiting";
+  const idx = level === "off" ? 0 : level === "waiting" ? 1 : 2;
+  const lines = [
+    "No pop-ups.",
+    "Pings you when an agent needs you.",
+    "Pings on needs-you and finished turns.",
+  ];
+  const seg = (lbl: string, i: number, value: string) => {
+    const active = i === idx;
+    const color = active ? "#fff" : "var(--vscode-foreground)";
+    return `<button data-notify="${value}" style="position:relative;z-index:1;flex:1;padding:7px 6px;border:none;background:transparent;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:${active ? 700 : 600};color:${color};transition:color .16s ease;">${lbl}</button>`;
+  };
+  return `<div class="hud-sec">
+    <div style="font-size:10px;letter-spacing:.11em;color:var(--dim);margin-bottom:8px;">NOTIFY</div>
+    <div style="position:relative;display:flex;padding:3px;background:var(--widget);border:1px solid var(--border);border-radius:8px;">
+      <div style="position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/3);border-radius:6px;background:var(--accent);transform:translateX(${idx * 100}%);transition:transform .16s ease;"></div>
+      ${seg("Off", 0, "off")}${seg("Waiting", 1, "waiting")}${seg("All", 2, "all")}
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:9px;font-size:11px;">
+      <span style="width:7px;height:7px;border-radius:50%;flex:none;background:${idx > 0 ? "var(--green)" : "var(--dim)"};opacity:${idx > 0 ? 1 : 0.5};"></span>
+      <span style="color:var(--dim);line-height:1.4;">${lines[idx]}</span>
     </div>
   </div>`;
 }

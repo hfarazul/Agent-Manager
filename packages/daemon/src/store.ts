@@ -3,6 +3,8 @@ import { config } from "./config.js";
 import { resolveProjectName } from "./project.js";
 import type {
   HudState,
+  NotifyLevel,
+  NotifyState,
   Session,
   SessionStatus,
   SleepState,
@@ -20,6 +22,8 @@ class Store extends EventEmitter {
 
   private usage: UsageState = { source: "none", updatedAt: nowIso() };
 
+  private notify: NotifyState = { level: config.notifyLevel };
+
   /** Full snapshot, with stale sessions pruned. */
   getState(): HudState {
     this.pruneStale();
@@ -29,7 +33,14 @@ class Store extends EventEmitter {
         a.projectName.localeCompare(b.projectName),
       ),
       usage: { ...this.usage },
+      notify: { ...this.notify },
     };
+  }
+
+  setNotifyLevel(level: NotifyLevel): void {
+    if (this.notify.level === level) return;
+    this.notify = { level };
+    this.emitChange();
   }
 
   /** Create or update a session's status. Used by the hook ingestion layer. */
@@ -40,6 +51,7 @@ class Store extends EventEmitter {
     lastMessage?: string,
     transcriptPath?: string,
     ancestorPids?: number[],
+    claudePid?: number,
   ): void {
     const existing = this.sessions.get(sessionId);
 
@@ -62,6 +74,7 @@ class Store extends EventEmitter {
       transcriptPath: transcriptPath ?? existing?.transcriptPath,
       // PID chain is set once (SessionStart) and preserved across later hooks.
       ancestorPids: ancestorPids ?? existing?.ancestorPids,
+      claudePid: claudePid ?? existing?.claudePid,
       updatedAt: nowIso(),
     };
     this.sessions.set(sessionId, session);
@@ -184,6 +197,10 @@ class Store extends EventEmitter {
     const cutoff = Date.now() - config.sessionStaleMs;
     let changed = false;
     for (const [id, s] of this.sessions) {
+      // Sessions whose claude PID we know are managed by the liveness sweep
+      // (pruneDeadSessions) — never time-prune them, so an idle-but-alive agent
+      // doesn't vanish when you step away or the Mac sleeps.
+      if (s.claudePid) continue;
       if (Date.parse(s.updatedAt) < cutoff) {
         this.sessions.delete(id);
         changed = true;
@@ -193,6 +210,23 @@ class Store extends EventEmitter {
     if (changed) queueMicrotask(() => this.emit("change"));
   }
 
+  /**
+   * Drop sessions whose `claude` process is gone (crash, quit, tab closed).
+   * Called on a timer — this is the real "is it still running?" check, replacing
+   * inactivity-based pruning for sessions we can track. Sessions without a known
+   * claudePid (legacy/forwarder-less) fall back to pruneStale's time cutoff.
+   */
+  pruneDeadSessions(): void {
+    let changed = false;
+    for (const [id, s] of this.sessions) {
+      if (s.claudePid && !isProcessAlive(s.claudePid)) {
+        this.sessions.delete(id);
+        changed = true;
+      }
+    }
+    if (changed) this.emitChange();
+  }
+
   private emitChange(): void {
     this.emit("change");
   }
@@ -200,6 +234,18 @@ class Store extends EventEmitter {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** True if a process with this PID exists. `kill(pid, 0)` sends no signal; it
+ * throws ESRCH if the process is gone, EPERM if it exists but isn't ours (still
+ * "alive"). */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
 }
 
 /** True if two session snapshots are identical in everything the UI shows

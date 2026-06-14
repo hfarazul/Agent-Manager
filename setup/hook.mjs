@@ -32,10 +32,13 @@ try {
   // malformed/empty stdin — still forward {} so the daemon at least sees activity
 }
 
-// Best-effort ancestry walk. One `ps` dump → pid→ppid map → walk up from us.
+// Best-effort ancestry walk. One `ps` dump → pid→{ppid,comm} → walk up from us.
+// Captures the full chain (for terminal matching) AND the `claude` PID itself
+// (for liveness — so an idle-but-alive session isn't pruned as "stale").
 try {
-  const pids = ancestorPids(process.pid);
+  const { pids, claudePid } = ancestry(process.pid);
   if (pids.length) data.agent_hud_ancestor_pids = pids;
+  if (claudePid) data.agent_hud_claude_pid = claudePid;
 } catch {
   /* ps unavailable — degrade silently; click-to-session just won't resolve */
 }
@@ -55,25 +58,36 @@ try {
 }
 
 /**
- * Collect the chain of PIDs from `start` up to (and excluding) the root, e.g.
- * [node, sh, claude, zsh, login, …]. The zsh entry is terminal.processId.
+ * Walk the chain of PIDs from `start` up to the root, e.g.
+ * [node, sh, claude, zsh, login, …]. Returns the full chain (the zsh entry is
+ * terminal.processId) plus the PID whose command is `claude` (the agent process,
+ * used for liveness checks).
  */
-function ancestorPids(start) {
-  const out = execSync("ps -axo pid=,ppid=", { encoding: "utf8" });
+function ancestry(start) {
+  const out = execSync("ps -axo pid=,ppid=,comm=", { encoding: "utf8" });
   const parent = new Map();
+  const comm = new Map();
   for (const line of out.split("\n")) {
-    const m = line.trim().match(/^(\d+)\s+(\d+)$/);
-    if (m) parent.set(Number(m[1]), Number(m[2]));
+    const m = line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/);
+    if (m) {
+      parent.set(Number(m[1]), Number(m[2]));
+      comm.set(Number(m[1]), m[3]);
+    }
   }
   const chain = [];
+  let claudePid;
   let pid = start;
   const seen = new Set();
   while (pid > 1 && !seen.has(pid)) {
     seen.add(pid);
     chain.push(pid);
+    // The agent process names itself "claude" (basename match avoids the
+    // "Cursor.app" / "Claude.app" helpers).
+    const base = (comm.get(pid) || "").split("/").pop();
+    if (!claudePid && base === "claude") claudePid = pid;
     const ppid = parent.get(pid);
     if (ppid === undefined) break;
     pid = ppid;
   }
-  return chain;
+  return { pids: chain, claudePid };
 }
