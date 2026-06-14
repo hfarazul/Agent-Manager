@@ -73,7 +73,28 @@ so consider a sound or a Slack/push hook as a later escalation.
 
 ---
 
-## 2. Click to go to the session
+## 2. Click to go to the session ✅ SHIPPED
+
+**Status:** built and verified, including cross-window. Implementation as shipped:
+
+- **Identity via PID chain.** The hook forwarder (`setup/hook.mjs`) walks its own
+  process ancestry and injects `agent_hud_ancestor_pids`. The integrated terminal's
+  shell PID is in that chain and equals `terminal.processId`, so a row maps to its
+  exact tab — unique even when two agents share a repo (`cwd` alone can't).
+- **Same window:** `revealLocalTerminal()` matches `ancestorPids` against each
+  `vscode.window.terminals[].processId` and calls `terminal.show(false)`.
+- **Cross window:** the clicker POSTs `/focus`; the daemon broadcasts a focus frame
+  over WS and waits ≤1.2s for a claim. The owning window reveals its tab and POSTs
+  `/focus/claim {folder}`; the daemon raises that window via `cursor <folder>` (the
+  editor CLI — no AppleScript/Accessibility). `/focus` returns `{claimed}` so the
+  clicker toasts only when nobody could handle it.
+- **Gotchas learned:** reinstalling the same extension version doesn't reload new
+  code — bump the version (added a `vscode:prepublish` build guard). Window reload is
+  safe for running agents (pty-host persists; shell PIDs unchanged).
+
+Original notes below.
+
+---
 
 **Goal:** clicking a session row in the sidebar takes you straight to that Claude
 Code agent — focus its terminal/window — so you can respond to the prompt without
