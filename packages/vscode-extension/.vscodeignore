@@ -1,0 +1,11 @@
+# Keep the VSIX lean: ship dist/*.js + runtime deps (node_modules/ws), nothing else.
+.vscode/**
+src/**
+scripts/**
+**/*.ts
+**/*.map
+**/*.tsbuildinfo
+tsconfig.json
+.gitignore
+.vscodeignore
+*.vsix

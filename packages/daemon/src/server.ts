@@ -15,11 +15,38 @@ import type { NotifyLevel } from "./types.js";
 type WsLike = { readyState: number; OPEN: number; send: (data: string) => void };
 
 /**
+ * Loopback hardening. The daemon binds to 127.0.0.1, but a web page in the
+ * user's browser can still reach http://localhost:7842 (CSRF / DNS-rebinding) and
+ * would otherwise read full session state over WS or POST to mutating routes.
+ *
+ * Every legitimate client (the `ws` extension client, Node `fetch`, `curl` hooks,
+ * terminal-notifier) sends NO `Origin` header and a localhost `Host`. Browsers do
+ * the opposite — they always attach `Origin` (cross-origin fetch + WS handshake)
+ * and, under DNS-rebinding, a non-local `Host`. So we reject either signal.
+ * Returns a rejection reason, or null if the request is allowed.
+ */
+function denyReason(headers: Record<string, unknown>): string | null {
+  if (headers.origin) return "cross-origin requests are not allowed";
+  const host = String(headers.host ?? "").toLowerCase().replace(/:\d+$/, "");
+  if (host && host !== "127.0.0.1" && host !== "localhost" && host !== "::1" && host !== "[::1]") {
+    return "non-local host not allowed";
+  }
+  return null;
+}
+
+/**
  * Builds the Fastify app. Increment 1 wires only /health, /state, and the
  * WS /events push channel. Later increments add /hook, /sleep, /usage.
  */
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
+
+  // Loopback hardening — block browser-originated requests before any route runs
+  // (covers the WS upgrade too, which is an HTTP GET). See denyReason().
+  app.addHook("onRequest", async (req, reply) => {
+    const reason = denyReason(req.headers as Record<string, unknown>);
+    if (reason) return reply.code(403).send({ error: reason });
+  });
 
   // Tolerant body parsing. Claude Code hooks pipe JSON on stdin and the curl
   // forwarder may send it without a Content-Type (415) or, in odd cases, as
@@ -50,7 +77,12 @@ export async function buildServer(): Promise<FastifyInstance> {
   // open sockets here to broadcast, and correlate each request to its claim so
   // the clicking window learns whether anyone could handle it.
   const clients = new Set<WsLike>();
-  const pendingFocus = new Map<string, { resolve: (claimed: boolean) => void; timer: NodeJS.Timeout }>();
+  // sessionId → set of in-flight /focus waiters. A Set (not a single entry) so
+  // two concurrent /focus calls for the same session don't clobber each other:
+  // each registers its own waiter, a claim resolves them all, and each timeout
+  // removes only its own.
+  type FocusWaiter = { resolve: (claimed: boolean) => void; timer: NodeJS.Timeout };
+  const pendingFocus = new Map<string, Set<FocusWaiter>>();
   const broadcast = (obj: unknown): void => {
     const data = JSON.stringify(obj);
     for (const s of clients) if (s.readyState === s.OPEN) s.send(data);
@@ -115,11 +147,21 @@ export async function buildServer(): Promise<FastifyInstance> {
     broadcast({ type: "focus", sessionId });
 
     const claimed = await new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => {
-        pendingFocus.delete(sessionId);
-        resolve(false);
-      }, 1200);
-      pendingFocus.set(sessionId, { resolve, timer });
+      const waiter: FocusWaiter = {
+        resolve,
+        timer: setTimeout(() => {
+          const set = pendingFocus.get(sessionId);
+          set?.delete(waiter);
+          if (set && set.size === 0) pendingFocus.delete(sessionId);
+          resolve(false);
+        }, 1200),
+      };
+      let set = pendingFocus.get(sessionId);
+      if (!set) {
+        set = new Set();
+        pendingFocus.set(sessionId, set);
+      }
+      set.add(waiter);
     });
     return { ok: true, claimed };
   });
@@ -130,11 +172,13 @@ export async function buildServer(): Promise<FastifyInstance> {
     const { sessionId, folder } = req.body ?? {};
     if (folder) raiseWindow(folder);
     if (sessionId) {
-      const pending = pendingFocus.get(sessionId);
-      if (pending) {
-        clearTimeout(pending.timer);
+      const set = pendingFocus.get(sessionId);
+      if (set) {
+        for (const w of set) {
+          clearTimeout(w.timer);
+          w.resolve(true);
+        }
         pendingFocus.delete(sessionId);
-        pending.resolve(true);
       }
     }
     return { ok: true };
@@ -151,7 +195,13 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // WS push: send the current snapshot on connect, then on every store change.
   app.register(async (scoped) => {
-    scoped.get("/events", { websocket: true }, (socket) => {
+    scoped.get("/events", { websocket: true }, (socket, req) => {
+      // Defensive: the onRequest hook already blocks browser upgrades, but never
+      // stream state to a connection that slipped through with an Origin/host.
+      if (denyReason(req.headers as Record<string, unknown>)) {
+        socket.close();
+        return;
+      }
       clients.add(socket as unknown as WsLike);
       const send = () => {
         if (socket.readyState === socket.OPEN) {
