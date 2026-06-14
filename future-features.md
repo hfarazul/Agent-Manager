@@ -6,7 +6,32 @@ requires the daemon to own or spawn agents.
 
 ---
 
-## 1. Pop-up notifications
+## 1. Pop-up notifications ✅ SHIPPED
+
+**Status:** built and verified. Implementation as shipped:
+
+- **Daemon-side, single source.** Fired from the daemon (`notify.ts` + `notifier.ts`),
+  not per-window — so multiple editor windows don't each pop a copy, and it works
+  when the editor is backgrounded. `notifier.ts` diffs store snapshots and fires on
+  the EDGE into `waiting` (and `ready` at level `all`), deduped per session.
+- **Clickable → jump.** Uses `terminal-notifier` with `-execute` POSTing `/focus`,
+  which routes through the cross-window focus path (§2). Falls back to `osascript`
+  (alert only) when terminal-notifier is absent.
+- **Reliable sound + branding.** Sound via `afplay` (macOS gates terminal-notifier's
+  own `-sound` behind per-app settings, so we play it ourselves); branded with the
+  HUD app icon (`packages/daemon/assets/notify-icon.png`).
+- **Levels + opt-out.** `off` / `waiting` / `all` (default `waiting`), toggled from a
+  NOTIFY segmented control in the HUD → `POST /notify` → store. Env default
+  `AGENT_HUD_NOTIFY`.
+- **Gotcha learned:** terminal-notifier's `-group` SILENTLY replaces a prior
+  notification (no re-banner/sound) — omitted, since the notifier already dedupes at
+  the source, so a real re-wait must re-alert.
+- The original `osascript` "display notification" hooks in `~/.claude/settings.json`
+  were removed once this landed — the daemon is now the sole notification system.
+
+Original notes below.
+
+---
 
 **Goal:** when a session flips to `waiting` (blocked on a permission prompt or an
 `AskUserQuestion`/`ExitPlanMode`), surface a native OS notification so you don't
