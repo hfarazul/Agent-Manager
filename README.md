@@ -71,9 +71,11 @@ can run those two steps individually if you prefer.
 
 ### Installing for someone (agent-friendly)
 
-If you're a coding agent (e.g. Claude Code) setting this up for a user, this
-whole flow is scriptable. Run the install, then **verify each layer** rather
-than assuming success:
+If you're a coding agent (e.g. Claude Code) setting this up for a user, follow
+**[`agentic-install.md`](./agentic-install.md)** — a guided playbook that asks the
+setup questions up front and walks each manual step in-flow (instead of leaving
+them as a skippable end-list). In short: run the install, then **verify each
+layer** rather than assuming success:
 
 ```bash
 # 1. Install (idempotent, ~1–2 min: builds the daemon + the extension)
