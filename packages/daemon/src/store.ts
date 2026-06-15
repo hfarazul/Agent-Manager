@@ -27,14 +27,15 @@ class Store extends EventEmitter {
 
   private notify: NotifyState = { level: config.notifyLevel };
 
-  /** Full snapshot, with stale sessions pruned. */
+  /** Full snapshot, with stale sessions pruned. Sessions are returned in
+   * creation order (Map insertion order) — the panel relies on this for a STABLE
+   * layout: existing rows/cards never move, new ones append. An in-place update
+   * (upsertSession on an existing id) keeps its position. */
   getState(): HudState {
     this.pruneStale();
     return {
       sleep: { ...this.sleep },
-      sessions: [...this.sessions.values()].sort((a, b) =>
-        a.projectName.localeCompare(b.projectName),
-      ),
+      sessions: [...this.sessions.values()],
       usage: { ...this.usage },
       codexUsage: this.codexUsage ? { ...this.codexUsage } : undefined,
       notify: { ...this.notify },

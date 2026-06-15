@@ -2,7 +2,7 @@
   "name": "agent-hud",
   "displayName": "Agent HUD",
   "description": "Glanceable view + sleep control for Claude Code agents",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "publisher": "agent-hud",
   "private": true,
   "engines": {

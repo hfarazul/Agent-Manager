@@ -119,32 +119,18 @@ function summary(run: number, wait: number, ready: number, idle: number): string
 
 /* ─────────────────────────── repo cards ─────────────────────────── */
 
-/** Ordering priority — most "needs you" first: waiting → ready → running → idle. */
-function statusRank(st: Session["status"]): number {
-  return st === "waiting" ? 0 : st === "ready" ? 1 : st === "running" ? 2 : 3;
-}
-
 function repoCards(sessions: Session[]): string {
+  // STABLE order: group by repo preserving first-seen order, sessions in creation
+  // order within each card (both come from the daemon's insertion-ordered
+  // snapshot). Nothing reorders on status change — statuses just recolor in
+  // place, and new sessions/repos append at the bottom. The warm left edge still
+  // surfaces which repo needs you, without moving anything.
   const groups = new Map<string, Session[]>();
   for (const s of sessions) {
     const key = s.projectName || "unknown";
     (groups.get(key) ?? groups.set(key, []).get(key)!).push(s);
   }
-
-  const ordered = [...groups.entries()]
-    .map(([project, rows]) => {
-      rows.sort(
-        (a, b) =>
-          statusRank(a.status) - statusRank(b.status) ||
-          Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
-      );
-      const rank = Math.min(...rows.map((r) => statusRank(r.status)));
-      const recency = Math.max(...rows.map((r) => Date.parse(r.updatedAt) || 0));
-      return { project, rows, rank, recency };
-    })
-    .sort((a, b) => a.rank - b.rank || b.recency - a.recency);
-
-  return ordered.map(({ project, rows }) => repoCard(project, rows)).join("");
+  return [...groups.entries()].map(([project, rows]) => repoCard(project, rows)).join("");
 }
 
 function repoCard(project: string, rows: Session[]): string {

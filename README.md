@@ -148,7 +148,10 @@ appear automatically, grouped into per-repo cards:
   session (with `terminal-notifier`).
 - **Limits** — 5h / weekly usage for Claude Code (and Codex, if used).
 
-The footer sections collapse from their `▾` headers.
+Repo cards keep a **stable order** (first-seen; new ones append at the bottom) —
+they don't reshuffle as statuses change, so nothing jumps mid-glance; the warm
+left edge surfaces which repo needs you without moving it. The footer sections
+collapse from their `▾` headers.
 
 ## Codex (optional)
 
