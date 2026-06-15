@@ -42,13 +42,19 @@ Claude Code (hooks + statusLine)  ──▶  Daemon (localhost :7842)  ──▶
 ## Install
 
 One command does everything — prerequisite checks, daemon + hooks, and the
-editor extension:
+editor extension. Either bootstrap remotely:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hfarazul/Agent-Manager/main/bootstrap.sh | bash
+# then reload the editor: Cmd+Shift+P → "Developer: Reload Window"
+```
+
+…or clone and run it yourself:
 
 ```bash
 git clone https://github.com/hfarazul/Agent-Manager.git
 cd Agent-Manager
 ./install.sh
-# then reload the editor: Cmd+Shift+P → "Developer: Reload Window"
 ```
 
 It's idempotent — re-run it after `git pull` to update. Under the hood it runs
