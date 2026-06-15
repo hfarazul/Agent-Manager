@@ -8,9 +8,10 @@ let client: DaemonClient;
 let statusBar: vscode.StatusBarItem;
 let provider: HudViewProvider;
 
-/** Project names the user has folded in the panel. Held here (not in the
- * webview) so collapse survives the wholesale re-render on every poll. */
-const collapsedGroups = new Set<string>();
+/** Footer section keys the user has folded (claude / codex / awake / notify).
+ * Held here (not in the webview) so collapse survives the re-render on every
+ * poll. Empty = all expanded (the v4 default). */
+const collapsedSections = new Set<string>();
 
 export function activate(context: vscode.ExtensionContext): void {
   const baseUrl = vscode.workspace
@@ -85,7 +86,7 @@ class HudViewProvider implements vscode.WebviewViewProvider {
 
   render(): void {
     if (this.view) {
-      this.view.webview.html = panelHtml(client.state, client.connected, collapsedGroups);
+      this.view.webview.html = panelHtml(client.state, client.connected, collapsedSections);
     }
   }
 }
@@ -93,7 +94,7 @@ class HudViewProvider implements vscode.WebviewViewProvider {
 async function handleMessage(m: {
   cmd: string;
   level?: number;
-  group?: string;
+  section?: string;
   value?: boolean;
   sessionId?: string;
 }): Promise<void> {
@@ -106,9 +107,9 @@ async function handleMessage(m: {
   } else if (m.cmd === "notifyLevel" && m.level !== undefined) {
     const lvl = m.level as unknown as "off" | "waiting" | "all";
     if (lvl === "off" || lvl === "waiting" || lvl === "all") await client.setNotify(lvl);
-  } else if (m.cmd === "toggleGroup" && m.group) {
-    if (collapsedGroups.has(m.group)) collapsedGroups.delete(m.group);
-    else collapsedGroups.add(m.group);
+  } else if (m.cmd === "toggleSection" && m.section) {
+    if (collapsedSections.has(m.section)) collapsedSections.delete(m.section);
+    else collapsedSections.add(m.section);
     provider.render();
   } else if (m.cmd === "clamshell" || m.cmd === "idle") {
     // Legacy single-toggle protocol — kept as a defensive fallback.
