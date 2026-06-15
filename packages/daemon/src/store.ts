@@ -1,4 +1,7 @@
 import { EventEmitter } from "node:events";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, dirname } from "node:path";
 import { config } from "./config.js";
 import { resolveProjectName } from "./project.js";
 import type {
@@ -25,7 +28,9 @@ class Store extends EventEmitter {
 
   private codexUsage: UsageState | undefined;
 
-  private notify: NotifyState = { level: config.notifyLevel };
+  // The user's last NOTIFY choice persists across daemon restarts (it used to
+  // reset to the default every restart, silently turning off finished-turn pings).
+  private notify: NotifyState = { level: loadNotifyLevel() ?? config.notifyLevel };
 
   /** Full snapshot, with stale sessions pruned. Sessions are returned in
    * creation order (Map insertion order) — the panel relies on this for a STABLE
@@ -50,6 +55,7 @@ class Store extends EventEmitter {
   setNotifyLevel(level: NotifyLevel): void {
     if (this.notify.level === level) return;
     this.notify = { level };
+    saveNotifyLevel(level); // survive daemon restarts
     this.emitChange();
   }
 
@@ -253,6 +259,29 @@ class Store extends EventEmitter {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Small persisted state so the NOTIFY level survives daemon restarts. */
+const STATE_FILE = join(homedir(), ".agent-hud", "state.json");
+
+function loadNotifyLevel(): NotifyLevel | null {
+  try {
+    const j = JSON.parse(readFileSync(STATE_FILE, "utf8"));
+    return j.notifyLevel === "off" || j.notifyLevel === "waiting" || j.notifyLevel === "all"
+      ? j.notifyLevel
+      : null;
+  } catch {
+    return null; // no file / unreadable → fall back to config default
+  }
+}
+
+function saveNotifyLevel(level: NotifyLevel): void {
+  try {
+    mkdirSync(dirname(STATE_FILE), { recursive: true });
+    writeFileSync(STATE_FILE, JSON.stringify({ notifyLevel: level }) + "\n");
+  } catch {
+    /* best-effort — a read-only HOME shouldn't break the daemon */
+  }
 }
 
 /** True if a process with this PID exists. `kill(pid, 0)` sends no signal; it
