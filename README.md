@@ -41,21 +41,21 @@ Claude Code (hooks + statusLine)  ──▶  Daemon (localhost :7842)  ──▶
 
 ## Install
 
+One command does everything — prerequisite checks, daemon + hooks, and the
+editor extension:
+
 ```bash
 git clone https://github.com/hfarazul/Agent-Manager.git
 cd Agent-Manager
-
-# 1. Daemon + hooks + statusLine (builds the daemon, installs the launchd
-#    service, merges hooks into ~/.claude/settings.json — backed up first).
-#    Also wires Codex hooks if ~/.codex exists.
-./setup/install.sh
-
-# 2. The editor extension — build, package, install into Cursor/VS Code.
-cd packages/vscode-extension && npm install && npm run release
-#    then reload the editor: Cmd+Shift+P → "Developer: Reload Window"
+./install.sh
+# then reload the editor: Cmd+Shift+P → "Developer: Reload Window"
 ```
 
-`install.sh` resolves this machine's paths/user from templates, generates
+It's idempotent — re-run it after `git pull` to update. Under the hood it runs
+`setup/install.sh` (daemon + hooks) then builds and installs the extension; you
+can run those two steps individually if you prefer.
+
+`setup/install.sh` resolves this machine's paths/user from templates, generates
 `~/Library/LaunchAgents/com.agent-hud.daemon.plist` from
 [`setup/com.agent-hud.daemon.plist.template`](./setup/com.agent-hud.daemon.plist.template),
 loads the service, and merges the hooks + statusLine idempotently (safe to re-run).
