@@ -24,35 +24,86 @@ Claude Code (hooks + statusLine)  ──▶  Daemon (localhost :7842)  ──▶
 
 `waiting` (blocked on a permission prompt or `AskUserQuestion`) · `ready` (finished a turn, your move) · `running` (working) · `idle` (untouched a while).
 
-## Setup
+## Requirements
 
-One script resolves this machine's paths/user from templates and installs the
-daemon (launchd service), Claude Code hooks, and statusLine:
+- **macOS** (uses `caffeinate`, `pmset`, `launchd`, `osascript`).
+- **Node ≥ 20** (`node`/`npm` on `PATH`).
+- **Cursor or VS Code**, with its shell command installed so `cursor` (or `code`)
+  works in a terminal — in the editor: `Cmd+Shift+P → "Shell Command: Install
+  'cursor'/'code' command in PATH"`. The extension installer needs it.
+- **Claude Code ≥ v2.1.80** (for the `rate_limits` usage data). The hooks work on
+  any recent version; only the Limits panel needs this.
+- *Optional:* [`terminal-notifier`](https://github.com/julienXX/terminal-notifier)
+  (`brew install terminal-notifier`) for **clickable** notifications that jump to
+  the session. Without it, notifications fall back to a plain `osascript` banner.
+- *Optional:* the [**Codex CLI**](https://developers.openai.com/codex) if you also
+  want Codex sessions in the HUD (see [Codex](#codex-optional)).
+
+## Install
 
 ```bash
+git clone https://github.com/hfarazul/Agent-Manager.git
+cd Agent-Manager
+
+# 1. Daemon + hooks + statusLine (builds the daemon, installs the launchd
+#    service, merges hooks into ~/.claude/settings.json — backed up first).
+#    Also wires Codex hooks if ~/.codex exists.
 ./setup/install.sh
-```
 
-It builds the daemon, generates `~/Library/LaunchAgents/com.agent-hud.daemon.plist`
-from [`setup/com.agent-hud.daemon.plist.template`](./setup/com.agent-hud.daemon.plist.template),
-loads the service, and merges the hooks + statusLine into `~/.claude/settings.json`
-(backing it up first). It then prints two manual steps:
-
-```bash
-# clamshell (lid-closed) keep-awake — needs root (the script prints the exact command):
-sudo install -m 0440 <generated> /etc/sudoers.d/agent-hud && sudo visudo -cf /etc/sudoers.d/agent-hud
-
-# the editor extension — build, package, install into Cursor/VS Code:
+# 2. The editor extension — build, package, install into Cursor/VS Code.
 cd packages/vscode-extension && npm install && npm run release
+#    then reload the editor: Cmd+Shift+P → "Developer: Reload Window"
 ```
 
+`install.sh` resolves this machine's paths/user from templates, generates
+`~/Library/LaunchAgents/com.agent-hud.daemon.plist` from
+[`setup/com.agent-hud.daemon.plist.template`](./setup/com.agent-hud.daemon.plist.template),
+loads the service, and merges the hooks + statusLine idempotently (safe to re-run).
 Hooks wired: `SessionStart`, `SessionEnd`, `Notification`, `Stop`,
 `UserPromptSubmit`, `PreToolUse` → `POST :7842/hook`; statusLine
 (`setup/statusline.mjs`) → `POST :7842/usage/statusline`.
 
-Requires Claude Code **≥ v2.1.80** for the `rate_limits` (usage) data.
+Then **one optional manual step** for clamshell (lid-closed) keep-awake, which
+needs root — `install.sh` prints the exact command with the generated file:
+
+```bash
+sudo install -m 0440 <generated> /etc/sudoers.d/agent-hud && sudo visudo -cf /etc/sudoers.d/agent-hud
+```
+
+Skip it and everything works except the "Always" (lid-closed) keep-awake level.
+
+## Using it
+
+Open the **Agent HUD** view from the Activity Bar (the equalizer icon). Launch
+Claude Code as you normally do in the editor's integrated terminal — sessions
+appear automatically, grouped into per-repo cards:
+
+- **Which one needs you** — a card shows a warm left edge when a session is
+  `waiting` (amber) or `ready` (blue). Each session is one line: status · task ·
+  `respond ↵` / `your move` · age.
+- **Click a session** to jump to its terminal tab (works across editor windows).
+- **Keep Mac awake** — `Sleep` / `Awake` / `Always` (lid-closed needs the sudoers
+  step).
+- **Notify** — `Off` / `Waiting` / `All`; clicking a notification jumps to the
+  session (with `terminal-notifier`).
+- **Limits** — 5h / weekly usage for Claude Code (and Codex, if used).
+
+The footer sections collapse from their `▾` headers.
+
+## Codex (optional)
+
+If you use the **Codex CLI** (in a terminal, not the IDE extension), `install.sh`
+appends matching hooks to `~/.codex/config.toml` (backed up). Codex sessions then
+show in the HUD with their own task names and a separate **CODEX LIMITS** panel.
+On first run Codex will prompt you to **trust** the hooks — approve once. Hooks
+fire in interactive Codex, not `codex exec`.
+
+## Notes
+
 Set `AGENT_HUD_DEBUG=1` on the daemon to capture raw hook/statusLine payloads
-(size-capped) under `$TMPDIR` for schema debugging.
+(size-capped) under `$TMPDIR` for schema debugging. The daemon listens on
+loopback only and rejects any request carrying a browser `Origin` / non-local
+`Host`, so a web page can't reach it.
 
 ## Development
 
