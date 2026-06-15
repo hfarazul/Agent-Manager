@@ -57,7 +57,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "vscode:prepublish": "npm run build",
     "package": "npx --yes @vscode/vsce package --allow-missing-repository --skip-license",
-    "release": "npm run build && npm run package && bash scripts/install-to-cursor.sh"
+    "release": "npm run build && npm run package && bash scripts/install-to-cursor.sh",
+    "bump": "npm version patch --no-git-tag-version",
+    "ship": "npm run bump && npm run release"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

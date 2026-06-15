@@ -165,7 +165,42 @@ cd packages/daemon && npm run build
 launchctl kickstart -k gui/$(id -u)/com.agent-hud.daemon
 tail -f ~/Library/Logs/agent-hud/daemon.err.log
 
-# extension: edit, then one command to build + package + install
-cd packages/vscode-extension && npm run release
+# extension: edit, then ONE command — bump version + build + package + install
+cd packages/vscode-extension && npm run ship
 # then: Cmd+Shift+P → Developer: Reload Window
 ```
+
+> ⚠️ **The version-bump rule.** Reinstalling the *same* extension version does
+> **not** reload — the editor keeps the cached copy. Always bump the version on
+> extension changes. `npm run ship` does it for you (`bump` → `release`); a bare
+> `npm run release` won't. `bump` only edits `package.json` (no git tag), so it's
+> maintainer-only — it is **not** in `install.sh`, which users also run.
+
+## Updating
+
+Nothing auto-updates; updates are a pull + re-install. Layers propagate
+differently:
+
+| You changed… | To ship it |
+|---|---|
+| `setup/hook.mjs` / `statusline.mjs` | just commit — they're scripts run fresh each hook fire (a `git pull` is enough). |
+| `packages/daemon` | just commit — the installer rebuilds + restarts the service. |
+| `packages/vscode-extension` | **`npm run ship`** (bumps the version), then commit. |
+
+**As the maintainer**, after committing + pushing, optionally cut a release for a
+versioned artifact + downloadable `.vsix`:
+
+```bash
+gh release create vX.Y.Z --generate-notes packages/vscode-extension/agent-hud-*.vsix
+```
+
+**As a user**, re-run the installer to pull + rebuild everything (idempotent):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hfarazul/Agent-Manager/main/bootstrap.sh | bash
+# or, from a clone:  git pull && ./install.sh
+# then: Cmd+Shift+P → Developer: Reload Window
+```
+
+Re-running the installer keeps **all three layers** (daemon, hooks, extension) in
+sync in one step.
