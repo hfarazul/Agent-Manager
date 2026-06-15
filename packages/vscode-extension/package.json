@@ -2,14 +2,18 @@
   "name": "agent-hud",
   "displayName": "Agent HUD",
   "description": "Glanceable view + sleep control for Claude Code agents",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "publisher": "agent-hud",
   "private": true,
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
-  "activationEvents": ["onStartupFinished"],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {

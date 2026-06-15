@@ -143,19 +143,20 @@ class Store extends EventEmitter {
     }
   }
 
-  /** Demote "ready" sessions that have sat untouched past the threshold to
-   * "idle". Called periodically by the scanner. */
-  demoteReadyToIdle(): void {
-    const cutoff = Date.now() - config.readyToIdleMs;
-    let changed = false;
-    for (const [id, s] of this.sessions) {
-      if (s.status === "ready" && Date.parse(s.updatedAt) < cutoff) {
-        // Keep updatedAt so the overall stale-prune clock keeps running.
-        this.sessions.set(id, { ...s, status: "idle" });
-        changed = true;
-      }
+  /**
+   * Acknowledge a session — the user clicked/opened it in the HUD. A "ready"
+   * ("your move") session demotes to "idle": you've seen it, so it stops being
+   * loud. This replaces the old time-based fade — "ready" now persists until you
+   * actually engage (click here, or type in its terminal → running), never just
+   * because minutes passed. No-op for any other status (waiting still needs a
+   * real response; running/idle are unaffected).
+   */
+  acknowledgeSession(sessionId: string): void {
+    const s = this.sessions.get(sessionId);
+    if (s && s.status === "ready") {
+      this.sessions.set(sessionId, { ...s, status: "idle", updatedAt: nowIso() });
+      this.emitChange();
     }
-    if (changed) this.emitChange();
   }
 
   /** Sessions the scanner should inspect (have a transcript on disk). */

@@ -185,6 +185,14 @@ export async function buildServer(): Promise<FastifyInstance> {
     return { ok: true };
   });
 
+  // Acknowledge a session (user clicked it in the HUD): a "ready" session
+  // demotes to "idle". Replaces the old time-based fade.
+  app.post<{ Body: { sessionId?: string } }>("/acknowledge", async (req) => {
+    const sessionId = req.body?.sessionId;
+    if (sessionId) store.acknowledgeSession(sessionId);
+    return { ok: true };
+  });
+
   // Set the OS-notification level. Body: { level: "off" | "waiting" | "all" }.
   app.post<{ Body: { level?: string } }>("/notify", async (req) => {
     const level = req.body?.level;

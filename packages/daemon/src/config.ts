@@ -16,13 +16,6 @@ export const config = {
   sessionStaleMs: Number(process.env.AGENT_HUD_SESSION_STALE_MS ?? 1000 * 60 * 30),
 
   /**
-   * A "ready" session (finished a turn, awaiting your next prompt) that sits
-   * untouched for this long demotes to "idle" — the soft "your move" cue fades
-   * to calm once you've clearly not engaged.
-   */
-  readyToIdleMs: Number(process.env.AGENT_HUD_READY_TO_IDLE_MS ?? 1000 * 60 * 5),
-
-  /**
    * When set, raw hook/statusLine payloads are appended to JSONL files under
    * $TMPDIR for schema debugging (Step 0). OFF by default — these payloads
    * contain local paths + session metadata and the files grow unbounded.

@@ -130,6 +130,9 @@ async function handleMessage(m: {
  */
 async function goToSession(sessionId: string): Promise<void> {
   const session = client.state?.sessions.find((s) => s.sessionId === sessionId);
+  // Clicking a row acknowledges it: a "ready" session demotes to "idle". Fire
+  // regardless of whether we can focus the terminal — the click IS the ack.
+  void client.acknowledge(sessionId);
   if (await revealLocalTerminal(session)) return;
 
   const claimed = await client.requestFocus(sessionId);

@@ -46,6 +46,17 @@ test("allows a normal local client (no Origin, localhost Host)", async () => {
   await app.close();
 });
 
+/* ── /acknowledge demotes ready → idle ── */
+
+test("POST /acknowledge demotes a ready session to idle", async () => {
+  const app = await buildServer();
+  store.upsertSession("ack-1", "/tmp/p", "ready");
+  await app.inject({ method: "POST", url: "/acknowledge", payload: { sessionId: "ack-1" } });
+  const s = store.getState().sessions.find((x) => x.sessionId === "ack-1");
+  assert.equal(s?.status, "idle");
+  await app.close();
+});
+
 /* ── Concurrent /focus race (Medium) ── */
 
 test("two concurrent /focus for one session both see the claim", async () => {

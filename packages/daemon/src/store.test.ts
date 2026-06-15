@@ -1,6 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setTimeout as delay } from "node:timers/promises";
 import { store } from "./store.js";
 
 const get = (id: string) => store.getState().sessions.find((s) => s.sessionId === id);
@@ -40,12 +39,17 @@ test("liveness: a session with a dead claude PID is pruned, a live one is kept",
   assert.equal(get("dead"), undefined, "session with a dead claude process is pruned");
 });
 
-test("ready demotes to idle after the threshold, but not while fresh", async () => {
+test("acknowledge demotes ready → idle (click-driven, not time-driven)", () => {
   store.upsertSession("r1", "/tmp/p", "ready");
-  store.demoteReadyToIdle();
-  assert.equal(get("r1")?.status, "ready", "fresh ready stays ready");
+  store.acknowledgeSession("r1");
+  assert.equal(get("r1")?.status, "idle", "clicking a ready session marks it idle");
+});
 
-  await delay(80); // test threshold is 50ms (set in the test script)
-  store.demoteReadyToIdle();
-  assert.equal(get("r1")?.status, "idle");
+test("acknowledge does not touch non-ready sessions", () => {
+  store.upsertSession("r2", "/tmp/p", "waiting", { lastMessage: "permission" });
+  store.acknowledgeSession("r2");
+  assert.equal(get("r2")?.status, "waiting", "waiting still needs a real response");
+  store.upsertSession("r3", "/tmp/p", "running");
+  store.acknowledgeSession("r3");
+  assert.equal(get("r3")?.status, "running");
 });

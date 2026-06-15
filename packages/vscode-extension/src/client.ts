@@ -123,6 +123,19 @@ export class DaemonClient {
     }
   }
 
+  /** Tell the daemon the user clicked/opened a session — demotes "ready" → "idle". */
+  async acknowledge(sessionId: string): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/acknowledge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+    } catch {
+      /* daemon down — ignore */
+    }
+  }
+
   /** Set the OS-notification level on the daemon. */
   async setNotify(level: "off" | "waiting" | "all"): Promise<void> {
     try {

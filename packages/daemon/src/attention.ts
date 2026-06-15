@@ -85,9 +85,8 @@ export function stopAttentionScanner(): void {
 }
 
 function scanOnce(): void {
-  // Fade finished "ready" sessions to "idle" once untouched a while.
-  store.demoteReadyToIdle();
-
+  // "ready" → "idle" is now driven by the user acknowledging (clicking) a
+  // session, not by elapsed time — see store.acknowledgeSession().
   for (const { sessionId, transcriptPath } of store.getScanTargets()) {
     const pending = detectWaiting(transcriptPath);
     store.setQuestionAttention(

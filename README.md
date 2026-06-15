@@ -30,7 +30,7 @@ Claude Code (hooks + statusLine)  ──▶  Daemon (localhost :7842)  ──▶
 
 ### Session states
 
-`waiting` (blocked on a permission prompt or `AskUserQuestion`) · `ready` (finished a turn, your move) · `running` (working) · `idle` (untouched a while).
+`waiting` (blocked on a permission prompt or `AskUserQuestion`) · `ready` (finished a turn, your move) · `running` (working) · `idle` (a `ready` session you've acknowledged by clicking it — stays calm). `ready` no longer fades on a timer; it persists until you engage (click it here, or type in its terminal → `running`).
 
 ## Requirements
 
