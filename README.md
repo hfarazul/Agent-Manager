@@ -49,7 +49,13 @@ Claude Code (hooks + statusLine)  ──▶  Daemon (localhost :7842)  ──▶
 
 ## Install
 
-One command does everything — prerequisite checks, daemon + hooks, and the
+> 🤖 **Installing with an AI coding agent? Use
+> [`agentic-install.md`](./agentic-install.md).** It's a guided playbook that asks
+> the setup questions up front and prompts + verifies every manual step in-flow,
+> so nothing is left half-wired. Agents should follow it instead of the quick
+> steps below.
+
+Humans: one command does everything — prerequisite checks, daemon + hooks, and the
 editor extension. Either bootstrap remotely:
 
 ```bash
