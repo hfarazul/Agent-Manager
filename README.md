@@ -8,6 +8,14 @@ A lightweight, local macOS system that gives a glanceable view + control over ru
 
 It only *observes and toggles sleep* — it never spawns or owns the agents (you launch those from your editor/terminal as usual).
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/hud-sessions.png" alt="Agent HUD — carded repos with attention-first sessions" width="340">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/hud-limits.png" alt="Agent HUD — Claude + Codex usage limits and controls" width="340">
+</p>
+
 ## Architecture
 
 Three decoupled layers (see [`vision.md`](./vision.md) for the full spec):
