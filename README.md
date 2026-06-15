@@ -55,6 +55,44 @@ It's idempotent — re-run it after `git pull` to update. Under the hood it runs
 `setup/install.sh` (daemon + hooks) then builds and installs the extension; you
 can run those two steps individually if you prefer.
 
+### Installing for someone (agent-friendly)
+
+If you're a coding agent (e.g. Claude Code) setting this up for a user, this
+whole flow is scriptable. Run the install, then **verify each layer** rather
+than assuming success:
+
+```bash
+# 1. Install (idempotent, ~1–2 min: builds the daemon + the extension)
+./install.sh
+
+# 2. Verify the daemon is up
+curl -s --max-time 2 http://localhost:7842/health        # → {"ok":true,...}
+launchctl print "gui/$(id -u)/com.agent-hud.daemon" >/dev/null 2>&1 && echo "service loaded"
+
+# 3. Verify the hooks are wired
+grep -q "hook.mjs" ~/.claude/settings.json && echo "claude hooks ok"
+[ -f ~/.codex/config.toml ] && grep -q "hook.mjs codex" ~/.codex/config.toml && echo "codex hooks ok"
+
+# 4. Verify the extension installed
+ls -d ~/.cursor/extensions/agent-hud.* 2>/dev/null || ls -d ~/.vscode/extensions/agent-hud.* 2>/dev/null
+```
+
+**Two steps an agent can NOT do — hand these to the user:**
+
+1. **Reload the editor window** so the extension activates: `Cmd+Shift+P →
+   "Developer: Reload Window"`. (Then the Agent HUD view appears in the Activity
+   Bar.)
+2. **The clamshell sudoers command** (optional, lid-closed keep-awake) — it needs
+   the user's password via `sudo`. `install.sh` prints the exact command; the user
+   runs it. Everything else works without it.
+
+To confirm end-to-end: have the user start a Claude Code (or Codex) session in
+the editor's integrated terminal, then check it shows up:
+
+```bash
+curl -s http://localhost:7842/state    # sessions[] should list the live session
+```
+
 `setup/install.sh` resolves this machine's paths/user from templates, generates
 `~/Library/LaunchAgents/com.agent-hud.daemon.plist` from
 [`setup/com.agent-hud.daemon.plist.template`](./setup/com.agent-hud.daemon.plist.template),
