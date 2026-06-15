@@ -41,24 +41,33 @@ option.
 
 ## Step 1 — Automated install (no user input)
 
-If the user accepted all recommended defaults, the one-command path covers the
-core + extension:
+Clone, then run `./install.sh` with flags that encode the Step 0 answers — one
+command, no hand-composing sub-scripts:
 
 ```bash
 git clone https://github.com/hfarazul/Agent-Manager.git && cd Agent-Manager
-./install.sh   # daemon + Claude/Codex hooks + builds & installs the extension
+./install.sh                       # all recommended (daemon + hooks + extension)
 ```
 
-If the user opted *out* of something, run the pieces instead of `./install.sh`:
+Map the intake to flags (they combine):
+
+| Step 0 answer | Flag |
+|---|---|
+| Don't want the editor extension | `--no-extension` |
+| Claude Code only (skip Codex hooks) | `--no-codex` |
+| Enable lid-closed keep-awake now (Q4 = yes) | `--sudoers` (prompts for password) |
 
 ```bash
-./setup/install.sh                                   # daemon + hooks (always)
-cd packages/vscode-extension && npm install && npm run release   # extension — only if Q3 kept it
+# examples
+./install.sh --no-codex                 # Claude-only setup
+./install.sh --no-extension --no-codex  # daemon + Claude hooks only
+./install.sh --sudoers                  # full + enable lid-closed keep-awake now
+./install.sh --help                     # full flag list
 ```
 
-`setup/install.sh` is idempotent: it installs the launchd service and merges hooks
-into `~/.claude/settings.json` (and `~/.codex/config.toml` if `~/.codex` exists),
-backing each up first.
+`install.sh` is idempotent: it installs the launchd service and merges hooks into
+`~/.claude/settings.json` (and `~/.codex/config.toml` unless `--no-codex`), backing
+each up first.
 
 **Verify before continuing:**
 
@@ -89,14 +98,16 @@ through each one and verify it before moving on.**
    Bar (equalizer icon). You cannot reload the window for them — make it an explicit
    ask, not a footnote.
 
-2. **Lid-closed keep-awake** *(only if enabled in Q3/Q4)* — needs `sudo`, so the
-   user must run it. `install.sh` prints the exact command with a generated temp
-   file; have the user run it in a `!` prompt (so its output returns to you):
+2. **Lid-closed keep-awake** *(only if enabled in Q3/Q4)* — needs `sudo`. The
+   cleanest path is to pass `--sudoers` to `install.sh` in Step 1, which runs the
+   step in-flow and prompts for the password. If you didn't, `install.sh` prints
+   the exact command with a generated temp file; have the user run it in a `!`
+   prompt (so its output returns to you):
    ```bash
    sudo install -m 0440 "$GENERATED_FILE" /etc/sudoers.d/agent-hud && sudo visudo -cf /etc/sudoers.d/agent-hud
    ```
    ⚠️ `$GENERATED_FILE` lives under `$TMPDIR` and can be cleared on reboot — run it
-   now, or re-run `./install.sh` to regenerate it. Verify:
+   now, or re-run `./install.sh --sudoers` to regenerate + apply it. Verify:
    ```bash
    sudo -n /usr/bin/pmset -g | grep -qi SleepDisabled && echo "sudoers ok" || echo "not wired yet"
    ```

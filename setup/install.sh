@@ -4,6 +4,24 @@
 # command for clamshell sleep. Idempotent and safe to re-run.
 set -euo pipefail
 
+NO_CODEX=0
+RUN_SUDOERS=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-codex) NO_CODEX=1 ;;
+    --sudoers)  RUN_SUDOERS=1 ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: setup/install.sh [--no-codex] [--sudoers]
+  --no-codex   skip wiring Codex hooks even if ~/.codex exists
+  --sudoers    enable lid-closed keep-awake (runs a sudo step; prompts for password)
+EOF
+      exit 0 ;;
+    *) echo "unknown flag: $1 (see --help)" >&2; exit 1 ;;
+  esac
+  shift
+done
+
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 DAEMON="$REPO/packages/daemon"
 USER_NAME="$(whoami)"
@@ -14,6 +32,7 @@ PLIST_DST="$HOME/Library/LaunchAgents/com.agent-hud.daemon.plist"
 
 if [ -z "$NODE_BIN" ]; then echo "node not found on PATH." >&2; exit 1; fi
 
+echo "🤖 AI agent? Follow agentic-install.md for the guided, verified flow."
 echo "▸ repo:  $REPO"
 echo "▸ node:  $NODE_BIN"
 echo "▸ user:  $USER_NAME"
@@ -82,7 +101,9 @@ NODE
 #     reads ~/.codex/config.toml; we append array-of-tables hook entries (valid
 #     TOML at EOF) once, with a backup. Skipped if Codex isn't installed.
 CODEX_CFG="$HOME/.codex/config.toml"
-if [ -d "$HOME/.codex" ]; then
+if [ "$NO_CODEX" -eq 1 ]; then
+  echo "▸ Codex hooks skipped (--no-codex)"
+elif [ -d "$HOME/.codex" ]; then
   echo "▸ wiring Codex hooks…"
   mkdir -p "$HOME/.codex"; [ -f "$CODEX_CFG" ] || : > "$CODEX_CFG"
   if grep -q "hook.mjs codex" "$CODEX_CFG" 2>/dev/null; then
@@ -112,8 +133,15 @@ sed "s|__USER__|$USER_NAME|g" "$REPO/setup/sudoers-agent-hud.template" > "$SUDOE
 echo
 echo "▸ DONE. The daemon is running and hooks are wired."
 echo
-echo "  One manual step for clamshell (lid-closed) keep-awake — needs root:"
-echo "    sudo install -m 0440 '$SUDOERS_TMP' /etc/sudoers.d/agent-hud && sudo visudo -cf /etc/sudoers.d/agent-hud"
-echo
-echo "  Then install the editor extension:"
-echo "    cd '$REPO/packages/vscode-extension' && npm install && npm run release"
+if [ "$RUN_SUDOERS" -eq 1 ]; then
+  echo "▸ enabling lid-closed keep-awake (needs your password)…"
+  if sudo install -m 0440 "$SUDOERS_TMP" /etc/sudoers.d/agent-hud && sudo visudo -cf /etc/sudoers.d/agent-hud; then
+    echo "  ✓ clamshell keep-awake enabled"
+  else
+    echo "  ✗ sudoers step failed — lid-closed keep-awake is off (re-run with --sudoers)." >&2
+  fi
+else
+  echo "  Optional — lid-closed keep-awake (needs root). Run with --sudoers to do it"
+  echo "  automatically, or run this yourself:"
+  echo "    sudo install -m 0440 '$SUDOERS_TMP' /etc/sudoers.d/agent-hud && sudo visudo -cf /etc/sudoers.d/agent-hud"
+fi
