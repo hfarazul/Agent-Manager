@@ -32,15 +32,21 @@ class Store extends EventEmitter {
   // reset to the default every restart, silently turning off finished-turn pings).
   private notify: NotifyState = { level: loadNotifyLevel() ?? config.notifyLevel };
 
-  /** Full snapshot, with stale sessions pruned. Sessions are returned in
-   * creation order (Map insertion order) — the panel relies on this for a STABLE
-   * layout: existing rows/cards never move, new ones append. An in-place update
-   * (upsertSession on an existing id) keeps its position. */
+  /** Full snapshot, with stale sessions pruned. Sessions are sorted by their
+   * STABLE `createdAt` (tie-break sessionId) — NOT by Map iteration order. This
+   * makes the order a pure function of the data: every window computes the
+   * identical layout from the same snapshot, regardless of when it connected or
+   * how the Map churned (a respawn or daemon restart no longer reshuffles rows).
+   * Existing rows/cards never move; newer sessions sort after older ones. */
   getState(): HudState {
     this.pruneStale();
+    const sessions = [...this.sessions.values()].sort(
+      (a, b) =>
+        a.createdAt.localeCompare(b.createdAt) || a.sessionId.localeCompare(b.sessionId),
+    );
     return {
       sleep: { ...this.sleep },
-      sessions: [...this.sessions.values()],
+      sessions,
       usage: { ...this.usage },
       codexUsage: this.codexUsage ? { ...this.codexUsage } : undefined,
       notify: { ...this.notify },
@@ -99,6 +105,13 @@ class Store extends EventEmitter {
       // PID chain is set once (SessionStart) and preserved across later hooks.
       ancestorPids: ancestorPids ?? existing?.ancestorPids,
       agentPid: agentPid ?? existing?.agentPid,
+      // The "unread" follow-up flag is preserved across updates, but AUTO-CLEARS
+      // the moment the session goes `running` — you've re-engaged, so it's no
+      // longer something to come back to.
+      unread: status === "running" ? false : existing?.unread,
+      // Stamp once on first sight; preserve across every later update so it's a
+      // stable sort key (see getState).
+      createdAt: existing?.createdAt ?? nowIso(),
       updatedAt: nowIso(),
     };
     this.sessions.set(sessionId, session);
@@ -164,6 +177,20 @@ class Store extends EventEmitter {
       this.sessions.set(sessionId, { ...s, status: "idle", updatedAt: nowIso() });
       this.emitChange();
     }
+  }
+
+  /**
+   * Toggle (or set) a session's "unread" follow-up flag — the user marked it
+   * "come back to this." Orthogonal to status; lives in the daemon so every
+   * window agrees. Pass `value` to set explicitly, omit to toggle.
+   */
+  setUnread(sessionId: string, value?: boolean): void {
+    const s = this.sessions.get(sessionId);
+    if (!s) return;
+    const next = value ?? !s.unread;
+    if (!!s.unread === next) return;
+    this.sessions.set(sessionId, { ...s, unread: next, updatedAt: nowIso() });
+    this.emitChange();
   }
 
   /** Sessions the scanner should inspect (have a transcript on disk). */
@@ -305,7 +332,11 @@ function visiblyEqual(a: Session | undefined, b: Session): boolean {
     a.lastMessage === b.lastMessage &&
     a.name === b.name &&
     a.projectName === b.projectName &&
-    a.agent === b.agent
+    a.agent === b.agent &&
+    // The "unread" flag is visible (glyph + card edge), and it can change WITHOUT
+    // a status change — auto-clear fires when a session goes running while it was
+    // already running. Compare it so that transition still broadcasts.
+    !!a.unread === !!b.unread
   );
 }
 

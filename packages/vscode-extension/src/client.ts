@@ -136,6 +136,19 @@ export class DaemonClient {
     }
   }
 
+  /** Toggle a session's "unread" follow-up flag (omit value to toggle). */
+  async setUnread(sessionId: string, value?: boolean): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/unread`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, value }),
+      });
+    } catch {
+      /* daemon down — ignore */
+    }
+  }
+
   /** Set the OS-notification level on the daemon. */
   async setNotify(level: "off" | "waiting" | "all"): Promise<void> {
     try {

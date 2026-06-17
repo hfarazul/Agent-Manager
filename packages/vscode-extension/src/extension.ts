@@ -104,6 +104,8 @@ async function handleMessage(m: {
     await applySleep({ idle: level >= 1, clamshell: level >= 2 });
   } else if (m.cmd === "goToSession" && m.sessionId) {
     await goToSession(m.sessionId);
+  } else if (m.cmd === "toggleUnread" && m.sessionId) {
+    await client.setUnread(m.sessionId);
   } else if (m.cmd === "notifyLevel" && m.level !== undefined) {
     const lvl = m.level as unknown as "off" | "waiting" | "all";
     if (lvl === "off" || lvl === "waiting" || lvl === "all") await client.setNotify(lvl);

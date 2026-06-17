@@ -53,3 +53,61 @@ test("acknowledge does not touch non-ready sessions", () => {
   store.acknowledgeSession("r3");
   assert.equal(get("r3")?.status, "running");
 });
+
+test("setUnread toggles the follow-up flag and survives non-running updates", () => {
+  store.upsertSession("u1", "/tmp/p", "ready");
+  store.setUnread("u1"); // toggle on
+  assert.equal(get("u1")?.unread, true, "toggled on");
+  // A non-running update (e.g. acknowledge → idle) keeps the flag.
+  store.acknowledgeSession("u1");
+  assert.equal(get("u1")?.status, "idle");
+  assert.equal(get("u1")?.unread, true, "unread persists through idle");
+  store.setUnread("u1"); // toggle off
+  assert.equal(get("u1")?.unread, false, "toggled off");
+});
+
+test("unread auto-clears when the session goes running (re-engaged)", () => {
+  store.upsertSession("u2", "/tmp/p", "ready");
+  store.setUnread("u2", true);
+  assert.equal(get("u2")?.unread, true);
+  store.upsertSession("u2", "/tmp/p", "running");
+  assert.equal(get("u2")?.unread, false, "running clears the follow-up flag");
+});
+
+test("clearing unread on an already-running session still broadcasts", () => {
+  // Flag a session that's already running, then a later running upsert clears the
+  // flag with NO status change — visiblyEqual must not suppress that broadcast,
+  // or the HUD would keep showing a stale flag until an unrelated change.
+  store.upsertSession("u3", "/tmp/p", "running");
+  store.setUnread("u3", true);
+  assert.equal(get("u3")?.unread, true);
+  let events = 0;
+  const onChange = () => { events++; };
+  store.on("change", onChange);
+  store.upsertSession("u3", "/tmp/p", "running"); // same status, clears unread
+  store.off("change", onChange);
+  assert.equal(get("u3")?.unread, false, "flag cleared");
+  assert.ok(events > 0, "a change event fired so clients re-render");
+});
+
+test("getState returns sessions in canonical (createdAt, sessionId) order", () => {
+  // The exact order is a pure function of the snapshot, so every window renders
+  // the shared sessions identically regardless of connect time or Map churn.
+  const list = store.getState().sessions;
+  for (let i = 1; i < list.length; i++) {
+    const prev = list[i - 1];
+    const cur = list[i];
+    const ok =
+      prev.createdAt < cur.createdAt ||
+      (prev.createdAt === cur.createdAt && prev.sessionId <= cur.sessionId);
+    assert.ok(ok, `out of order at ${i}: ${prev.sessionId} before ${cur.sessionId}`);
+  }
+});
+
+test("createdAt is stamped once and preserved across updates", () => {
+  store.upsertSession("ca1", "/tmp/p", "running");
+  const first = get("ca1")?.createdAt;
+  assert.ok(first, "createdAt set on first upsert");
+  store.upsertSession("ca1", "/tmp/p", "waiting", { lastMessage: "x" });
+  assert.equal(get("ca1")?.createdAt, first, "createdAt unchanged by later updates");
+});

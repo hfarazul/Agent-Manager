@@ -21,6 +21,12 @@ export interface Session {
    * `terminal.processId`, letting us focus this session's tab on click. */
   ancestorPids?: number[];
   agentPid?: number;
+  /** User-set "come back to this" flag — keeps the session surfaced even when
+   * idle. Auto-clears when the agent next runs. */
+  unread?: boolean;
+  /** Stable first-seen timestamp; the daemon sorts sessions by it so the panel
+   * order is identical across windows. */
+  createdAt: string;
   updatedAt: string;
 }
 

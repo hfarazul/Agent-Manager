@@ -34,6 +34,9 @@ export function panelHtml(
   .hud{--green:var(--vscode-charts-green,#2f8a2f);--yellow:var(--vscode-charts-yellow,#9a7400);
     --warn:var(--vscode-editorWarning-foreground,#c89000);--err:var(--vscode-errorForeground,#e06c5d);
     --blue:var(--vscode-charts-blue,#3b86d6);
+    /* Fixed vivid amber-orange — distinct from waiting(amber-yellow)/ready(blue)
+       and clearly visible on both black and light backgrounds. */
+    --flag:#ff8c2b;
     /* Fixed strong blue for the segmented pills — the theme's button bg is
        washed-out in some themes. */
     --accent:#3b86d6;
@@ -45,6 +48,9 @@ export function panelHtml(
   .sec-head:hover{opacity:.78;}
   .sess{display:flex;align-items:center;gap:9px;padding:3px 4px;border-radius:6px;cursor:pointer;}
   .sess:hover{background:color-mix(in srgb,var(--vscode-foreground) 8%,transparent);}
+  .flag{background:none;border:none;cursor:pointer;padding:2px 2px;margin-left:2px;font-size:13px;line-height:1;flex:none;color:var(--vscode-foreground);opacity:.55;transition:opacity .12s ease,color .12s ease,transform .1s ease;}
+  .flag:hover{opacity:1;color:var(--flag);transform:scale(1.18);}
+  .flag.on{opacity:1;color:var(--flag);}
   .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .age{color:var(--dim);font-size:10.5px;width:28px;text-align:right;flex:none;}
   .gauge{letter-spacing:2px;font-variant-numeric:tabular-nums;}
@@ -62,6 +68,8 @@ export function panelHtml(
     b.addEventListener('click', () => vscode.postMessage({ cmd: 'toggleSection', section: b.dataset.section })));
   document.querySelectorAll('[data-goto]').forEach((el) =>
     el.addEventListener('click', () => vscode.postMessage({ cmd: 'goToSession', sessionId: el.dataset.goto })));
+  document.querySelectorAll('[data-unread]').forEach((b) =>
+    b.addEventListener('click', (e) => { e.stopPropagation(); vscode.postMessage({ cmd: 'toggleUnread', sessionId: b.dataset.unread }); }));
   document.querySelectorAll('[data-notify]').forEach((b) =>
     b.addEventListener('click', () => vscode.postMessage({ cmd: 'notifyLevel', level: b.dataset.notify })));
 </script></body></html>`;
@@ -97,7 +105,7 @@ function content(s: HudState, collapsed: Set<string>): string {
   return `${header(true)}
   <div style="padding:13px 15px 5px;">
     <div style="font-size:9.5px;letter-spacing:.13em;color:var(--dim);margin-bottom:5px;">SESSIONS</div>
-    <div style="font-size:10.5px;color:var(--dim);">${summary(count("running"), count("waiting"), count("ready"), count("idle"))}</div>
+    <div style="font-size:10.5px;color:var(--dim);">${summary(count("running"), count("waiting"), count("ready"), count("idle"), s.sessions.filter((x) => x.unread).length)}</div>
   </div>
   <div style="padding:8px 11px 5px;display:flex;flex-direction:column;gap:8px;">
     ${s.sessions.length === 0 ? emptySessions() : repoCards(s.sessions)}
@@ -108,12 +116,13 @@ function content(s: HudState, collapsed: Set<string>): string {
   ${notifySection(s.notify, collapsed)}`;
 }
 
-function summary(run: number, wait: number, ready: number, idle: number): string {
+function summary(run: number, wait: number, ready: number, idle: number, flagged: number): string {
   const parts: string[] = [];
   if (wait > 0) parts.push(`${wait} <span style="color:var(--warn);">waiting</span>`);
   if (ready > 0) parts.push(`${ready} <span style="color:var(--blue);">ready</span>`);
   parts.push(`${run} <span style="color:var(--green);">running</span>`);
   if (idle > 0) parts.push(`${idle} idle`);
+  if (flagged > 0) parts.push(`${flagged} <span style="color:var(--flag);">flagged</span>`);
   return parts.join(" · ");
 }
 
@@ -135,12 +144,15 @@ function repoCards(sessions: Session[]): string {
 
 function repoCard(project: string, rows: Session[]): string {
   // Warm left edge ONLY when the repo needs you: amber for waiting, else blue
-  // for ready. Running/idle-only repos stay neutral.
+  // for ready, else purple for a flagged ("unread") follow-up. Running/idle-only
+  // repos stay neutral.
   const edge = rows.some((r) => r.status === "waiting")
     ? "var(--warn)"
     : rows.some((r) => r.status === "ready")
       ? "var(--blue)"
-      : "";
+      : rows.some((r) => r.unread)
+        ? "var(--flag)"
+        : "";
   const leftBorder = edge ? `border-left:2px solid ${edge};` : "";
   return `<div style="background:var(--widget);border:1px solid var(--border);${leftBorder}border-radius:10px;padding:9px 12px;">
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px;">
@@ -193,13 +205,22 @@ function sessionLine(x: Session): string {
         ? `<span style="font-size:10px;color:var(--blue);font-weight:700;flex:none;">your move</span>`
         : `<span style="font-size:10px;color:var(--dim);flex:none;">${x.status}</span>`;
 
-  const nameColor = x.status === "idle" ? "var(--dim)" : "var(--vscode-foreground)";
+  // A flagged ("unread") session stays bright even when idle — that's the whole
+  // point: you marked it to come back to.
+  const nameColor =
+    x.status === "idle" && !x.unread ? "var(--dim)" : "var(--vscode-foreground)";
+
+  const flagTitle = x.unread
+    ? "Flagged to come back to — click to clear"
+    : "Flag to come back to (stays surfaced; auto-clears when it runs again)";
+  const flag = `<button class="flag${x.unread ? " on" : ""}" data-unread="${esc(x.sessionId)}" title="${flagTitle}">${x.unread ? "⚑" : "⚐"}</button>`;
 
   return `<div class="sess" data-goto="${esc(x.sessionId)}" title="Go to this session's terminal">
     ${dot}
     <span class="name" style="color:${nameColor};">${esc(label(x))}</span>
     ${action}
     <span class="age">${relAge(x.updatedAt)}</span>
+    ${flag}
   </div>`;
 }
 

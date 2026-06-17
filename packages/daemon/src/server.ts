@@ -193,6 +193,14 @@ export async function buildServer(): Promise<FastifyInstance> {
     return { ok: true };
   });
 
+  // Toggle/set a session's "unread" follow-up flag. Body: { sessionId, value? }
+  // (omit value to toggle). Keeps a glanced-but-not-done session surfaced.
+  app.post<{ Body: { sessionId?: string; value?: boolean } }>("/unread", async (req) => {
+    const { sessionId, value } = req.body ?? {};
+    if (sessionId) store.setUnread(sessionId, value);
+    return { ok: true };
+  });
+
   // Set the OS-notification level. Body: { level: "off" | "waiting" | "all" }.
   app.post<{ Body: { level?: string } }>("/notify", async (req) => {
     const level = req.body?.level;

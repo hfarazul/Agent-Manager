@@ -52,6 +52,18 @@ export interface Session {
    * localhost-only.
    */
   agentPid?: number;
+  /**
+   * User-set "I'm not done with this" flag (the "unread" toggle in the panel).
+   * Orthogonal to `status` — it's YOUR attention state, not the agent's. A flagged
+   * session keeps its card surfaced regardless of status. Auto-clears when the
+   * session next goes `running` (you re-engaged), or on a manual toggle.
+   */
+  unread?: boolean;
+  /** ISO timestamp of when this session was first seen. Stamped once on the
+   * first upsert and never overwritten — used as a STABLE sort key so the panel
+   * order is a pure function of the data (identical across every window),
+   * instead of depending on Map churn or each window's WS-sync timing. */
+  createdAt: string;
   /** ISO timestamp of last update. */
   updatedAt: string;
 }
