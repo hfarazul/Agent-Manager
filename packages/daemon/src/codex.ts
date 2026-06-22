@@ -31,6 +31,11 @@ export function startCodexSweep(): void {
   timer.unref?.();
 }
 
+/** Run the Codex names+usage sweep immediately (manual "refresh" button). */
+export function refreshCodexNow(): void {
+  sweep();
+}
+
 function sweep(): void {
   try {
     refreshNames();
@@ -105,8 +110,11 @@ export function parseCodexUsage(rolloutPath: string): UsageState | null {
       const line = lines[i];
       if (!line.includes("rate_limits")) continue;
       try {
-        const rl = JSON.parse(line)?.payload?.rate_limits;
-        if (rl) return toUsage(rl);
+        const obj = JSON.parse(line);
+        const rl = obj?.payload?.rate_limits;
+        // Use the rollout entry's own timestamp so "updated" reflects when Codex
+        // actually recorded these limits, not when our sweep happened to read it.
+        if (rl) return toUsage(rl, typeof obj.timestamp === "string" ? obj.timestamp : undefined);
       } catch {
         /* keep scanning upward */
       }
@@ -119,7 +127,7 @@ export function parseCodexUsage(rolloutPath: string): UsageState | null {
   }
 }
 
-function toUsage(rl: any): UsageState {
+function toUsage(rl: any, at?: string): UsageState {
   const win = (x: any) =>
     x && typeof x.used_percent === "number"
       ? { usedPercent: x.used_percent, resetsAt: typeof x.resets_at === "number" ? x.resets_at : 0 }
@@ -128,6 +136,6 @@ function toUsage(rl: any): UsageState {
     session: win(rl.primary), // 5h window
     weekly: win(rl.secondary), // weekly window
     source: "codex",
-    updatedAt: new Date().toISOString(),
+    updatedAt: at ?? new Date().toISOString(),
   };
 }

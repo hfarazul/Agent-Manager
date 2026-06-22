@@ -279,6 +279,13 @@ class Store extends EventEmitter {
     if (changed) this.emitChange();
   }
 
+  /** Force a snapshot push to all clients without mutating anything — used by
+   * the manual "refresh" button so reset countdowns recompute against the
+   * current time even when no underlying field changed. */
+  notifyClients(): void {
+    this.emitChange();
+  }
+
   private emitChange(): void {
     this.emit("change");
   }

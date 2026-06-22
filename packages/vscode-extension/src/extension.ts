@@ -106,6 +106,8 @@ async function handleMessage(m: {
     await goToSession(m.sessionId);
   } else if (m.cmd === "toggleUnread" && m.sessionId) {
     await client.setUnread(m.sessionId);
+  } else if (m.cmd === "refreshUsage") {
+    await client.refreshUsage();
   } else if (m.cmd === "notifyLevel" && m.level !== undefined) {
     const lvl = m.level as unknown as "off" | "waiting" | "all";
     if (lvl === "off" || lvl === "waiting" || lvl === "all") await client.setNotify(lvl);

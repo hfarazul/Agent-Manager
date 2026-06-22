@@ -136,6 +136,15 @@ export class DaemonClient {
     }
   }
 
+  /** Force the daemon to re-pull usage (Codex sweep) and re-broadcast. */
+  async refreshUsage(): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/usage/refresh`, { method: "POST" });
+    } catch {
+      /* daemon down — ignore */
+    }
+  }
+
   /** Toggle a session's "unread" follow-up flag (omit value to toggle). */
   async setUnread(sessionId: string, value?: boolean): Promise<void> {
     try {

@@ -51,6 +51,10 @@ export function panelHtml(
   .flag{background:none;border:none;cursor:pointer;padding:2px 2px;margin-left:2px;font-size:13px;line-height:1;flex:none;color:var(--vscode-foreground);opacity:.55;transition:opacity .12s ease,color .12s ease,transform .1s ease;}
   .flag:hover{opacity:1;color:var(--flag);transform:scale(1.18);}
   .flag.on{opacity:1;color:var(--flag);}
+  .refresh{color:var(--dim);cursor:pointer;opacity:.7;transition:opacity .12s ease,color .12s ease;display:inline-flex;align-items:center;}
+  .refresh:hover{opacity:1;color:var(--accent);}
+  @keyframes hudSpin{to{transform:rotate(360deg);}}
+  .refresh.spin{animation:hudSpin .5s ease-in-out;}
   .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .age{color:var(--dim);font-size:10.5px;width:28px;text-align:right;flex:none;}
   .gauge{letter-spacing:2px;font-variant-numeric:tabular-nums;}
@@ -70,6 +74,12 @@ export function panelHtml(
     el.addEventListener('click', () => vscode.postMessage({ cmd: 'goToSession', sessionId: el.dataset.goto })));
   document.querySelectorAll('[data-unread]').forEach((b) =>
     b.addEventListener('click', (e) => { e.stopPropagation(); vscode.postMessage({ cmd: 'toggleUnread', sessionId: b.dataset.unread }); }));
+  document.querySelectorAll('[data-refresh]').forEach((b) =>
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin');
+      vscode.postMessage({ cmd: 'refreshUsage' });
+    }));
   document.querySelectorAll('[data-notify]').forEach((b) =>
     b.addEventListener('click', () => vscode.postMessage({ cmd: 'notifyLevel', level: b.dataset.notify })));
 </script></body></html>`;
@@ -230,11 +240,26 @@ function emptySessions(): string {
 
 /* ─────────────────────────── collapsible footer sections ─────────────────────────── */
 
-function sectionHead(key: string, title: string, open: boolean, rightLabel?: string): string {
+function sectionHead(
+  key: string,
+  title: string,
+  open: boolean,
+  rightLabel?: string,
+  refresh = false,
+  rightTitle?: string,
+): string {
+  // The refresh control is a <span role=button> (not a nested <button>, which is
+  // invalid inside the sec-head button); its click stops propagation so it
+  // refreshes without also toggling the section.
+  const refreshBtn = refresh
+    ? `<span class="refresh" data-refresh="1" role="button" tabindex="0" title="Refresh limits"
+        style="${rightLabel ? "margin-left:7px;" : "margin-left:auto;"}font-size:12px;line-height:1;flex:none;">↻</span>`
+    : "";
   return `<button data-section="${esc(key)}" class="sec-head">
     <span style="color:var(--dim);font-size:11px;width:11px;flex:none;line-height:1;">${open ? "▾" : "▸"}</span>
     <span style="font-size:9.5px;letter-spacing:.13em;color:var(--dim);">${esc(title)}</span>
-    ${rightLabel ? `<span style="margin-left:auto;font-size:9.5px;color:var(--dim);">${esc(rightLabel)}</span>` : ""}
+    ${rightLabel ? `<span style="margin-left:auto;font-size:9.5px;color:var(--dim);"${rightTitle ? ` title="${esc(rightTitle)}"` : ""}>${esc(rightLabel)}</span>` : ""}
+    ${refreshBtn}
   </button>`;
 }
 
@@ -247,7 +272,7 @@ function claudeLimits(usage: HudState["usage"], collapsed: Set<string>): string 
     ? gauges(usage)
     : `<div style="font-size:11px;color:var(--dim);">no data yet · statusline pushes while a session is live</div>`;
   return `<div class="hud-sec">
-    ${sectionHead("claude", "CLAUDE CODE LIMITS", open, hasData ? `via ${usage.source}` : undefined)}
+    ${sectionHead("claude", "CLAUDE CODE LIMITS", open, hasData ? `updated ${relAge(usage.updatedAt)}` : undefined, false, hasData ? `via ${usage.source}` : undefined)}
     ${open ? `<div style="margin-top:10px;">${body}</div>` : ""}
   </div>`;
 }
@@ -255,7 +280,7 @@ function claudeLimits(usage: HudState["usage"], collapsed: Set<string>): string 
 function codexLimits(usage: HudState["usage"], collapsed: Set<string>): string {
   const open = !collapsed.has("codex");
   return `<div class="hud-sec">
-    ${sectionHead("codex", "CODEX LIMITS", open, `via ${usage.source}`)}
+    ${sectionHead("codex", "CODEX LIMITS", open, `updated ${relAge(usage.updatedAt)}`, true, `via ${usage.source}`)}
     ${open ? `<div style="margin-top:10px;">${gauges(usage)}</div>` : ""}
   </div>`;
 }

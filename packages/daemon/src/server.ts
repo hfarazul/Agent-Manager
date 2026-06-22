@@ -7,7 +7,7 @@ import { ingestHook } from "./hooks.js";
 import { ingestUsage } from "./usage.js";
 import { startAttentionScanner } from "./attention.js";
 import { startNotifier } from "./notifier.js";
-import { startCodexSweep } from "./codex.js";
+import { startCodexSweep, refreshCodexNow } from "./codex.js";
 import { raiseWindow } from "./focus.js";
 import type { NotifyLevel } from "./types.js";
 
@@ -198,6 +198,14 @@ export async function buildServer(): Promise<FastifyInstance> {
   app.post<{ Body: { sessionId?: string; value?: boolean } }>("/unread", async (req) => {
     const { sessionId, value } = req.body ?? {};
     if (sessionId) store.setUnread(sessionId, value);
+    return { ok: true };
+  });
+
+  // Manual "refresh limits" button: re-pull what we can (Codex disk sweep) and
+  // force a snapshot push so reset countdowns recompute against the current time.
+  app.post("/usage/refresh", async () => {
+    refreshCodexNow();
+    store.notifyClients();
     return { ok: true };
   });
 
