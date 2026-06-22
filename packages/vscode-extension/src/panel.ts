@@ -121,7 +121,7 @@ function content(s: HudState, collapsed: Set<string>): string {
     ${s.sessions.length === 0 ? emptySessions() : repoCards(s.sessions)}
   </div>
   ${claudeLimits(s.usage, collapsed)}
-  ${s.codexUsage && (s.codexUsage.session || s.codexUsage.weekly) ? codexLimits(s.codexUsage, collapsed) : ""}
+  ${s.codexUsage ? codexLimits(s.codexUsage, collapsed) : ""}
   ${awakeSection(s.sleep, collapsed)}
   ${notifySection(s.notify, collapsed)}`;
 }
@@ -279,9 +279,13 @@ function claudeLimits(usage: HudState["usage"], collapsed: Set<string>): string 
 
 function codexLimits(usage: HudState["usage"], collapsed: Set<string>): string {
   const open = !collapsed.has("codex");
+  const hasData = !!(usage.session || usage.weekly);
+  const body = hasData
+    ? gauges(usage)
+    : `<div style="font-size:11px;color:var(--dim);">no data yet · run a Codex session to populate limits</div>`;
   return `<div class="hud-sec">
-    ${sectionHead("codex", "CODEX LIMITS", open, `updated ${relAge(usage.updatedAt)}`, true, `via ${usage.source}`)}
-    ${open ? `<div style="margin-top:10px;">${gauges(usage)}</div>` : ""}
+    ${sectionHead("codex", "CODEX LIMITS", open, hasData ? `updated ${relAge(usage.updatedAt)}` : undefined, true, hasData ? `via ${usage.source}` : undefined)}
+    ${open ? `<div style="margin-top:10px;">${body}</div>` : ""}
   </div>`;
 }
 

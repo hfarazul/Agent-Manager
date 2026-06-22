@@ -1,4 +1,4 @@
-import { openSync, fstatSync, readSync, closeSync, readFileSync } from "node:fs";
+import { openSync, fstatSync, readSync, closeSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { store } from "./store.js";
@@ -78,16 +78,51 @@ function refreshNames(): void {
   }
 }
 
-/** Read the newest live Codex session's rollout for the latest rate_limits. */
+/** Read the latest Codex rate_limits. Prefers a live session's rollout; falls
+ * back to the newest rollout on disk so the limits are shown (and survive daemon
+ * restarts) even when no Codex session is currently running. */
 function refreshUsage(): void {
-  const codex = store
+  const live = store
     .getState()
     .sessions.filter((s) => s.agent === "codex" && s.transcriptPath)
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
-  if (!codex.length) return; // no live Codex session → keep last-known limits
 
-  const usage = parseCodexUsage(codex[0].transcriptPath!);
+  const path = live.length ? live[0].transcriptPath! : newestRolloutPath();
+  if (!path) return; // no Codex usage on this machine → section stays hidden
+
+  const usage = parseCodexUsage(path);
   if (usage) store.setCodexUsage(usage);
+}
+
+/** Newest rollout JSONL on disk. Codex stores them under
+ * ~/.codex/sessions/<year>/<month>/<day>/rollout-<ISO>-<id>.jsonl, so descend
+ * the lexically-greatest year→month→day and take the last file. Returns null if
+ * Codex isn't present (so Claude-only users never see an empty Codex section). */
+function newestRolloutPath(): string | null {
+  const latestDir = (dir: string): string | null => {
+    try {
+      const subs = readdirSync(dir, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+        .sort();
+      return subs.length ? join(dir, subs[subs.length - 1]) : null;
+    } catch {
+      return null;
+    }
+  };
+  const base = join(homedir(), ".codex", "sessions");
+  const year = latestDir(base);
+  const month = year && latestDir(year);
+  const day = month && latestDir(month);
+  if (!day) return null;
+  try {
+    const files = readdirSync(day)
+      .filter((f) => f.startsWith("rollout-") && f.endsWith(".jsonl"))
+      .sort();
+    return files.length ? join(day, files[files.length - 1]) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Extract 5h/weekly limits from the last token_count event in a rollout. */
