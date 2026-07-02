@@ -40,10 +40,16 @@ class Store extends EventEmitter {
    * Existing rows/cards never move; newer sessions sort after older ones. */
   getState(): HudState {
     this.pruneStale();
-    const sessions = [...this.sessions.values()].sort(
-      (a, b) =>
-        a.createdAt.localeCompare(b.createdAt) || a.sessionId.localeCompare(b.sessionId),
-    );
+    const staleCut = Date.now() - config.staleRunningMs;
+    const sessions = [...this.sessions.values()]
+      .sort(
+        (a, b) =>
+          a.createdAt.localeCompare(b.createdAt) || a.sessionId.localeCompare(b.sessionId),
+      )
+      // Display-only demotion: a "running" session that's been silent past the
+      // cutoff isn't really running — show it as idle so abandoned sessions stop
+      // looking active. Stored status is untouched (a new hook flips it back).
+      .map((s) => demoteStaleRunning(s, staleCut));
     return {
       sleep: { ...this.sleep },
       sessions,
@@ -231,6 +237,11 @@ class Store extends EventEmitter {
     this.emitChange();
   }
 
+  /** Raw session by id (with agentPid) — used by the /session/kill endpoint. */
+  getSession(sessionId: string): Session | undefined {
+    return this.sessions.get(sessionId);
+  }
+
   removeSession(sessionId: string): void {
     if (this.sessions.delete(sessionId)) this.emitChange();
   }
@@ -293,6 +304,16 @@ class Store extends EventEmitter {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Display-only: a "running" session last updated before `staleCutMs` (epoch ms)
+ * is shown as "idle" — an actively-working agent fires hooks far more often, so
+ * a long-silent "running" is really abandoned. Returns the same object when no
+ * change is needed. Pure, for testability. */
+export function demoteStaleRunning(s: Session, staleCutMs: number): Session {
+  return s.status === "running" && Date.parse(s.updatedAt) < staleCutMs
+    ? { ...s, status: "idle" }
+    : s;
 }
 
 /** Small persisted state so the NOTIFY level survives daemon restarts. */

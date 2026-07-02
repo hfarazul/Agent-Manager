@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { basename } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import websocket from "@fastify/websocket";
 import { config } from "./config.js";
@@ -33,6 +35,21 @@ function denyReason(headers: Record<string, unknown>): string | null {
     return "non-local host not allowed";
   }
   return null;
+}
+
+/** True if `pid` is currently a claude/codex process — a PID-reuse guard before
+ * we SIGTERM it. `ps -o comm=` gives the executable path; we match its basename. */
+function isAgentProcess(pid: number): boolean {
+  try {
+    const comm = execFileSync("ps", ["-o", "comm=", "-p", String(pid)], {
+      encoding: "utf8",
+      timeout: 2000,
+    }).trim();
+    const base = basename(comm);
+    return base === "claude" || base === "codex";
+  } catch {
+    return false; // ps failed or no such process
+  }
 }
 
 /**
@@ -199,6 +216,35 @@ export async function buildServer(): Promise<FastifyInstance> {
     const { sessionId, value } = req.body ?? {};
     if (sessionId) store.setUnread(sessionId, value);
     return { ok: true };
+  });
+
+  // Close a session (HUD ✕ button): SIGTERM the agent process and drop it from
+  // the HUD. Safety: only kill if the live PID is STILL a claude/codex process
+  // (guards against PID reuse pointing agentPid at some unrelated process).
+  app.post<{ Body: { sessionId?: string } }>("/session/kill", async (req) => {
+    const sessionId = req.body?.sessionId;
+    if (!sessionId) return { ok: false, reason: "no-session" };
+    const session = store.getSession(sessionId);
+    const pid = session?.agentPid;
+    if (!pid) {
+      // Nothing to signal (forwarder-less/legacy) — just remove it from view.
+      store.removeSession(sessionId);
+      return { ok: true, killed: false, reason: "no-pid" };
+    }
+    if (!isAgentProcess(pid)) {
+      // PID is dead or now something else — don't signal it; just clear the row.
+      store.removeSession(sessionId);
+      return { ok: true, killed: false, reason: "not-agent" };
+    }
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      /* already gone */
+    }
+    // Optimistic: remove now for instant UI. If it somehow survives, its next
+    // hook re-adds it (correct), and the liveness sweep still governs the rest.
+    store.removeSession(sessionId);
+    return { ok: true, killed: true };
   });
 
   // Manual "refresh limits" button: re-pull what we can (Codex disk sweep) and

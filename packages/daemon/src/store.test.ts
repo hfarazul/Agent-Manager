@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { store } from "./store.js";
+import { store, demoteStaleRunning } from "./store.js";
+import type { Session } from "./types.js";
 
 const get = (id: string) => store.getState().sessions.find((s) => s.sessionId === id);
 
@@ -88,6 +89,21 @@ test("clearing unread on an already-running session still broadcasts", () => {
   store.off("change", onChange);
   assert.equal(get("u3")?.unread, false, "flag cleared");
   assert.ok(events > 0, "a change event fired so clients re-render");
+});
+
+test("demoteStaleRunning shows a long-silent 'running' session as idle", () => {
+  const mk = (status: Session["status"], updatedAt: string): Session => ({
+    sessionId: "d1", cwd: "/tmp/p", projectName: "p", agent: "claude-code",
+    status, createdAt: updatedAt, updatedAt,
+  });
+  const cut = 1000; // epoch-ms cutoff
+  // running + updated before the cutoff → demoted to idle
+  assert.equal(demoteStaleRunning(mk("running", new Date(500).toISOString()), cut).status, "idle");
+  // running + updated after the cutoff → stays running
+  assert.equal(demoteStaleRunning(mk("running", new Date(1500).toISOString()), cut).status, "running");
+  // non-running is never touched, however old
+  assert.equal(demoteStaleRunning(mk("waiting", new Date(0).toISOString()), cut).status, "waiting");
+  assert.equal(demoteStaleRunning(mk("ready", new Date(0).toISOString()), cut).status, "ready");
 });
 
 test("getState returns sessions in canonical (createdAt, sessionId) order", () => {

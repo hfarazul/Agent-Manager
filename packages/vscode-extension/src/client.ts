@@ -136,6 +136,19 @@ export class DaemonClient {
     }
   }
 
+  /** Close a session: daemon SIGTERMs the agent process and drops it. */
+  async killSession(sessionId: string): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/session/kill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+    } catch {
+      /* daemon down — ignore */
+    }
+  }
+
   /** Force the daemon to re-pull usage (Codex sweep) and re-broadcast. */
   async refreshUsage(): Promise<void> {
     try {

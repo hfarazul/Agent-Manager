@@ -16,6 +16,16 @@ export const config = {
   sessionStaleMs: Number(process.env.AGENT_HUD_SESSION_STALE_MS ?? 1000 * 60 * 30),
 
   /**
+   * A session still marked "running" but silent for this long is almost
+   * certainly NOT running — an actively-working agent fires hooks every few
+   * seconds. Past this cutoff we DISPLAY it as "idle" (grey, not green) so
+   * abandoned headless sessions (e.g. IDE-panel `claude --output-format
+   * stream-json` that never cleanly exited) stop looking active. Display-only;
+   * the stored status is untouched, so a fresh hook flips it back to running.
+   */
+  staleRunningMs: Number(process.env.AGENT_HUD_STALE_RUNNING_MS ?? 1000 * 60 * 20),
+
+  /**
    * When set, raw hook/statusLine payloads are appended to JSONL files under
    * $TMPDIR for schema debugging (Step 0). OFF by default — these payloads
    * contain local paths + session metadata and the files grow unbounded.

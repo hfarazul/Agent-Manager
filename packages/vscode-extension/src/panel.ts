@@ -51,6 +51,8 @@ export function panelHtml(
   .flag{background:none;border:none;cursor:pointer;padding:2px 2px;margin-left:2px;font-size:13px;line-height:1;flex:none;color:var(--vscode-foreground);opacity:.55;transition:opacity .12s ease,color .12s ease,transform .1s ease;}
   .flag:hover{opacity:1;color:var(--flag);transform:scale(1.18);}
   .flag.on{opacity:1;color:var(--flag);}
+  .kill{background:none;border:none;cursor:pointer;padding:2px 2px;margin-left:1px;font-size:13px;line-height:1;flex:none;color:var(--vscode-foreground);opacity:.3;transition:opacity .12s ease,color .12s ease,transform .1s ease;}
+  .kill:hover{opacity:1;color:var(--err);transform:scale(1.15);}
   .refresh{color:var(--dim);cursor:pointer;opacity:.7;transition:opacity .12s ease,color .12s ease;display:inline-flex;align-items:center;}
   .refresh:hover{opacity:1;color:var(--accent);}
   @keyframes hudSpin{to{transform:rotate(360deg);}}
@@ -74,6 +76,8 @@ export function panelHtml(
     el.addEventListener('click', () => vscode.postMessage({ cmd: 'goToSession', sessionId: el.dataset.goto })));
   document.querySelectorAll('[data-unread]').forEach((b) =>
     b.addEventListener('click', (e) => { e.stopPropagation(); vscode.postMessage({ cmd: 'toggleUnread', sessionId: b.dataset.unread }); }));
+  document.querySelectorAll('[data-kill]').forEach((b) =>
+    b.addEventListener('click', (e) => { e.stopPropagation(); vscode.postMessage({ cmd: 'killSession', sessionId: b.dataset.kill }); }));
   document.querySelectorAll('[data-refresh]').forEach((b) =>
     b.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -224,6 +228,7 @@ function sessionLine(x: Session): string {
     ? "Flagged to come back to — click to clear"
     : "Flag to come back to (stays surfaced; auto-clears when it runs again)";
   const flag = `<button class="flag${x.unread ? " on" : ""}" data-unread="${esc(x.sessionId)}" title="${flagTitle}">${x.unread ? "⚑" : "⚐"}</button>`;
+  const kill = `<button class="kill" data-kill="${esc(x.sessionId)}" title="Close this session (ends the agent process)">✕</button>`;
 
   return `<div class="sess" data-goto="${esc(x.sessionId)}" title="Go to this session's terminal">
     ${dot}
@@ -231,6 +236,7 @@ function sessionLine(x: Session): string {
     ${action}
     <span class="age">${relAge(x.updatedAt)}</span>
     ${flag}
+    ${kill}
   </div>`;
 }
 

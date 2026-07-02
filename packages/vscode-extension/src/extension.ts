@@ -106,6 +106,8 @@ async function handleMessage(m: {
     await goToSession(m.sessionId);
   } else if (m.cmd === "toggleUnread" && m.sessionId) {
     await client.setUnread(m.sessionId);
+  } else if (m.cmd === "killSession" && m.sessionId) {
+    await confirmAndKill(m.sessionId);
   } else if (m.cmd === "refreshUsage") {
     await client.refreshUsage();
   } else if (m.cmd === "notifyLevel" && m.level !== undefined) {
@@ -119,6 +121,19 @@ async function handleMessage(m: {
     // Legacy single-toggle protocol — kept as a defensive fallback.
     await applySleep(m.cmd === "clamshell" ? { clamshell: !!m.value } : { idle: !!m.value });
   }
+}
+
+/** Close (✕) a session — confirm first, since it SIGTERMs the agent process. */
+async function confirmAndKill(sessionId: string): Promise<void> {
+  const s = client.state?.sessions.find((x) => x.sessionId === sessionId);
+  const what = s?.name || `session ${sessionId.slice(0, 6)}`;
+  const where = s?.projectName ? ` in ${s.projectName}` : "";
+  const pick = await vscode.window.showWarningMessage(
+    `Close "${what}"${where}? This ends the agent process (its transcript is kept, so it's resumable).`,
+    { modal: true },
+    "Close session",
+  );
+  if (pick === "Close session") await client.killSession(sessionId);
 }
 
 /**
