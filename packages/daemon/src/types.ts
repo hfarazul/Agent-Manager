@@ -26,6 +26,12 @@ export interface Session {
    * populates a beat after SessionStart once the first statusLine push lands.
    */
   name?: string;
+  /**
+   * Claude Code's peer name for this session (e.g. "agent-manager-c1") — the
+   * address other sessions use with SendMessage. Different from `name`. Read
+   * from ~/.claude/sessions/<pid>.json by the peer sweep (peers.ts).
+   */
+  peerName?: string;
   status: SessionStatus;
   /** e.g. the Notification text that put this session into needs_attention. */
   lastMessage?: string;

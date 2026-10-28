@@ -97,6 +97,7 @@ async function handleMessage(m: {
   section?: string;
   value?: boolean;
   sessionId?: string;
+  peer?: string;
 }): Promise<void> {
   if (m.cmd === "sleepLevel") {
     // Segmented control: 0 = sleep, 1 = awake (lid open), 2 = + clamshell.
@@ -108,6 +109,9 @@ async function handleMessage(m: {
     await client.setUnread(m.sessionId);
   } else if (m.cmd === "killSession" && m.sessionId) {
     await confirmAndKill(m.sessionId);
+  } else if (m.cmd === "copyPeer" && m.peer) {
+    await vscode.env.clipboard.writeText(m.peer);
+    vscode.window.setStatusBarMessage(`Agent HUD: copied peer name "${m.peer}"`, 3000);
   } else if (m.cmd === "refreshUsage") {
     await client.refreshUsage();
   } else if (m.cmd === "notifyLevel" && m.level !== undefined) {

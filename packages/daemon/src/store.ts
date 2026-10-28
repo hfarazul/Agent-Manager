@@ -101,6 +101,7 @@ class Store extends EventEmitter {
       projectName: cwd ? resolveProjectName(cwd) : (existing?.projectName ?? "unknown"),
       // Name only comes from statusLine; preserve it across hook updates.
       name: existing?.name,
+      peerName: existing?.peerName,
       // Which tool drives this session — preserved once known; defaults Claude.
       agent: agent ?? existing?.agent ?? "claude-code",
       status,
@@ -237,6 +238,15 @@ class Store extends EventEmitter {
     this.emitChange();
   }
 
+  /** Attach Claude Code's peer name (the SendMessage address) to a session.
+   * Enrichment only, like setSessionName: never creates a session. */
+  setPeerName(sessionId: string, peerName: string): void {
+    const existing = this.sessions.get(sessionId);
+    if (!existing || existing.peerName === peerName) return;
+    this.sessions.set(sessionId, { ...existing, peerName });
+    this.emitChange();
+  }
+
   /** Raw session by id (with agentPid) — used by the /session/kill endpoint. */
   getSession(sessionId: string): Session | undefined {
     return this.sessions.get(sessionId);
@@ -359,6 +369,7 @@ function visiblyEqual(a: Session | undefined, b: Session): boolean {
     a.status === b.status &&
     a.lastMessage === b.lastMessage &&
     a.name === b.name &&
+    a.peerName === b.peerName &&
     a.projectName === b.projectName &&
     a.agent === b.agent &&
     // The "unread" flag is visible (glyph + card edge), and it can change WITHOUT

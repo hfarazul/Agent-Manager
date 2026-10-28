@@ -13,6 +13,9 @@ export interface Session {
   agent: AgentKind;
   /** Claude Code session task name, e.g. "Review vision.md document". */
   name?: string;
+  /** Claude Code peer name — the address other sessions use with SendMessage
+   * (e.g. "agent-manager-c1"). Not the same as `name`. */
+  peerName?: string;
   status: SessionStatus;
   lastMessage?: string;
   /** Why the session needs attention (the UI may ignore this). */

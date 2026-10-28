@@ -48,15 +48,18 @@ export function panelHtml(
   .sec-head:hover{opacity:.78;}
   .sess{display:flex;align-items:center;gap:9px;padding:3px 4px;border-radius:6px;cursor:pointer;}
   .sess:hover{background:color-mix(in srgb,var(--vscode-foreground) 8%,transparent);}
-  .flag{background:none;border:none;cursor:pointer;padding:2px 2px;margin-left:2px;font-size:13px;line-height:1;flex:none;color:var(--vscode-foreground);opacity:.55;transition:opacity .12s ease,color .12s ease,transform .1s ease;}
-  .flag:hover{opacity:1;color:var(--flag);transform:scale(1.18);}
-  .flag.on{opacity:1;color:var(--flag);}
   .kill{background:none;border:none;cursor:pointer;padding:2px 2px;margin-left:1px;font-size:13px;line-height:1;flex:none;color:var(--vscode-foreground);opacity:.3;transition:opacity .12s ease,color .12s ease,transform .1s ease;}
   .kill:hover{opacity:1;color:var(--err);transform:scale(1.15);}
   .refresh{color:var(--dim);cursor:pointer;opacity:.7;transition:opacity .12s ease,color .12s ease;display:inline-flex;align-items:center;}
   .refresh:hover{opacity:1;color:var(--accent);}
   @keyframes hudSpin{to{transform:rotate(360deg);}}
   .refresh.spin{animation:hudSpin .5s ease-in-out;}
+  .copy{background:none;border:none;cursor:pointer;padding:2px 2px;margin-left:2px;flex:none;width:17px;height:17px;
+    display:inline-flex;align-items:center;justify-content:center;color:var(--vscode-foreground);opacity:.55;
+    transition:opacity .12s ease,color .12s ease,transform .1s ease;}
+  .copy:hover{opacity:1;color:var(--accent);transform:scale(1.15);}
+  .copy.done{opacity:1;color:var(--green);}
+  .copy-gap{width:17px;margin-left:2px;flex:none;}
   .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .age{color:var(--dim);font-size:10.5px;width:28px;text-align:right;flex:none;}
   .gauge{letter-spacing:2px;font-variant-numeric:tabular-nums;}
@@ -74,8 +77,12 @@ export function panelHtml(
     b.addEventListener('click', () => vscode.postMessage({ cmd: 'toggleSection', section: b.dataset.section })));
   document.querySelectorAll('[data-goto]').forEach((el) =>
     el.addEventListener('click', () => vscode.postMessage({ cmd: 'goToSession', sessionId: el.dataset.goto })));
-  document.querySelectorAll('[data-unread]').forEach((b) =>
-    b.addEventListener('click', (e) => { e.stopPropagation(); vscode.postMessage({ cmd: 'toggleUnread', sessionId: b.dataset.unread }); }));
+  document.querySelectorAll('[data-peer]').forEach((b) =>
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      vscode.postMessage({ cmd: 'copyPeer', peer: b.dataset.peer });
+      b.classList.add('done'); setTimeout(() => b.classList.remove('done'), 1200);
+    }));
   document.querySelectorAll('[data-kill]').forEach((b) =>
     b.addEventListener('click', (e) => { e.stopPropagation(); vscode.postMessage({ cmd: 'killSession', sessionId: b.dataset.kill }); }));
   document.querySelectorAll('[data-refresh]').forEach((b) =>
@@ -224,10 +231,12 @@ function sessionLine(x: Session): string {
   const nameColor =
     x.status === "idle" && !x.unread ? "var(--dim)" : "var(--vscode-foreground)";
 
-  const flagTitle = x.unread
-    ? "Flagged to come back to — click to clear"
-    : "Flag to come back to (stays surfaced; auto-clears when it runs again)";
-  const flag = `<button class="flag${x.unread ? " on" : ""}" data-unread="${esc(x.sessionId)}" title="${flagTitle}">${x.unread ? "⚑" : "⚐"}</button>`;
+  // Copy button: copies the peer name (the SendMessage address) so you can hand
+  // it to another session. The task name shown on the row is NOT a valid address.
+  // Sessions without a peer name (Codex) get an empty slot so columns stay aligned.
+  const copy = x.peerName
+    ? `<button class="copy" data-peer="${esc(x.peerName)}" title="Copy peer name: ${esc(x.peerName)}">${COPY_ICON}</button>`
+    : `<span class="copy-gap"></span>`;
   const kill = `<button class="kill" data-kill="${esc(x.sessionId)}" title="Close this session (ends the agent process)">✕</button>`;
 
   return `<div class="sess" data-goto="${esc(x.sessionId)}" title="Go to this session's terminal">
@@ -235,10 +244,14 @@ function sessionLine(x: Session): string {
     <span class="name" style="color:${nameColor};">${esc(label(x))}</span>
     ${action}
     <span class="age">${relAge(x.updatedAt)}</span>
-    ${flag}
+    ${copy}
     ${kill}
   </div>`;
 }
+
+/** Two overlapping sheets — the usual "copy" glyph. Uses currentColor so the
+ * hover/done colors from .copy apply. */
+const COPY_ICON = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5v-.5A1.5 1.5 0 0 0 9 1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h.5"/></svg>`;
 
 function emptySessions(): string {
   return `<div style="padding:14px 4px;color:var(--dim);font-size:11.5px;text-align:center;">no active sessions</div>`;

@@ -10,6 +10,7 @@ import { ingestUsage } from "./usage.js";
 import { startAttentionScanner } from "./attention.js";
 import { startNotifier } from "./notifier.js";
 import { startCodexSweep, refreshCodexNow } from "./codex.js";
+import { startPeerSweep } from "./peers.js";
 import { raiseWindow } from "./focus.js";
 import type { NotifyLevel } from "./types.js";
 
@@ -321,6 +322,8 @@ export async function startServer(): Promise<FastifyInstance> {
   startNotifier();
   // Enrich Codex sessions: names (session_index.jsonl) + 5h/weekly limits (rollout).
   startCodexSweep();
+  // Attach Claude Code peer names (the SendMessage address) from ~/.claude/sessions.
+  startPeerSweep();
   // Liveness sweep: drop sessions whose claude process has exited. Runs on a
   // timer (not inactivity) so idle-but-alive agents persist. unref() so it never
   // keeps the process alive on its own.
